@@ -1,0 +1,109 @@
+#name	getPGType	getSQLType	getPGArrayType	knownWithoutCatalog
+int4	23	4	1007	true
+INT4	23	4	1007	false
+Int4	23	4	1007	false
+integer	0	1111	1007	false
+INTEGER	0	1111	1007	false
+int	0	1111	1007	false
+INT	0	1111	1007	false
+smallint	0	1111	1005	false
+int2	21	5	1005	true
+bigint	0	1111	1016	false
+int8	20	-5	1016	true
+long	0	1111	1016	false
+boolean	0	1111	1000	false
+bool	16	-7	1000	true
+BOOLEAN	0	1111	1000	false
+float	0	1111	1022	false
+float4	700	7	1021	true
+float8	701	8	1022	true
+real	0	1111	1021	false
+double precision	0	1111	1022	false
+DOUBLE PRECISION	0	1111	1022	false
+decimal	0	1111	1231	false
+numeric	1700	2	1231	true
+dec	0	1111	0	false
+character varying	0	1111	1015	false
+varchar	1043	12	1015	true
+character	0	1111	0	false
+char	18	1	1002	true
+bpchar	1042	1	1014	true
+text	25	12	1009	true
+string	0	1111	0	false
+name	19	12	1003	true
+time	1083	92	1183	true
+time without time zone	0	1111	1183	false
+time with time zone	0	1111	1270	false
+timetz	1266	92	1270	true
+timestamp	1114	93	1115	true
+timestamp without time zone	0	1111	1115	false
+timestamp with time zone	0	1111	1185	false
+timestamptz	1184	93	1185	true
+date	1082	91	1182	true
+interval	1186	1111	1187	false
+bytea	17	-2	1001	true
+binary	0	1111	0	false
+uuid	2950	1111	2951	true
+json	114	1111	199	true
+jsonb	3802	1111	3807	true
+xml	142	2009	143	true
+bit	1560	-7	1561	true
+varbit	1562	1111	1563	true
+bit varying	0	1111	0	false
+money	790	8	791	true
+oid	26	-5	1028	true
+serial	0	1111	0	false
+bigserial	0	1111	0	false
+serial4	0	1111	0	false
+int4[]	1007	2003	0	true
+_int4	1007	2003	0	true
+integer[]	0	2003	0	false
+INT4[]	1007	2003	0	false
+text[]	1009	2003	0	true
+_text	1009	2003	0	true
+varchar[]	1015	2003	0	true
+character varying[]	0	2003	0	false
+float8[]	1022	2003	0	true
+double precision[]	0	2003	0	false
+numeric[]	1231	2003	0	true
+decimal[]	0	2003	0	false
+timestamptz[]	1185	2003	0	true
+timestamp with time zone[]	0	2003	0	false
+point	600	1111	1017	true
+box	603	1111	1020	true
+circle	718	1111	719	false
+line	628	1111	629	false
+lseg	601	1111	1018	false
+path	602	1111	1019	false
+polygon	604	1111	1027	false
+inet	869	1111	1041	false
+cidr	650	1111	651	false
+macaddr	829	1111	1040	false
+refcursor	1790	2012	2201	true
+record	2249	1111	2287	false
+void	2278	1111	0	false
+unknown	705	1111	0	false
+tsvector	3614	1111	3643	false
+hstore	16550	1111	16555	false
+mood	18729	12	18728	false
+pair	18743	2002	18742	false
+posint	18736	2001	18735	false
+s2.color	18749	12	18748	false
+color	18749	12	0	false
+public.mood	18729	12	18728	false
+pg_catalog.int4	23	4	1007	false
+pg_catalog.text	25	12	1009	false
+"Mixed Case"	18745	12	18744	false
+Mixed Case	0	1111	0	false
+"int4"	23	4	1007	false
+"INT4"	0	1111	1007	false
+nosuchtype	0	1111	0	false
+ int4	0	1111	0	false
+int4 	0	1111	0	false
+smallserial	0	1111	0	false
+number	0	1111	0	false
+tinyint	0	1111	0	false
+nvarchar	0	1111	0	false
+clob	0	1111	0	false
+blob	0	1111	0	false
+datetime	0	1111	0	false

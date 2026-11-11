@@ -1,0 +1,167 @@
+#declared	typeOid	typmod	format_type	columnType	columnTypeName	columnClassName	precision	scale	displaySize	signed	caseSensitive	currency	searchable	nullable	autoIncrement	readOnly	writable	definitelyWritable
+bool	16	-1	boolean	-7	bool	java.lang.Boolean	1	0	1	false	false	false	true	1	false	false	true	false
+int2	21	-1	smallint	5	int2	java.lang.Integer	5	0	6	true	false	false	true	1	false	false	true	false
+int4	23	-1	integer	4	int4	java.lang.Integer	10	0	11	true	false	false	true	1	false	false	true	false
+int8	20	-1	bigint	-5	int8	java.lang.Long	19	0	20	true	false	false	true	1	false	false	true	false
+oid	26	-1	oid	-5	oid	java.lang.Long	10	0	10	false	false	false	true	1	false	false	true	false
+float4	700	-1	real	7	float4	java.lang.Float	8	8	15	true	false	false	true	1	false	false	true	false
+float8	701	-1	double precision	8	float8	java.lang.Double	17	17	25	true	false	false	true	1	false	false	true	false
+real	700	-1	real	7	float4	java.lang.Float	8	8	15	true	false	false	true	1	false	false	true	false
+double precision	701	-1	double precision	8	float8	java.lang.Double	17	17	25	true	false	false	true	1	false	false	true	false
+float(10)	700	-1	real	7	float4	java.lang.Float	8	8	15	true	false	false	true	1	false	false	true	false
+float(30)	701	-1	double precision	8	float8	java.lang.Double	17	17	25	true	false	false	true	1	false	false	true	false
+numeric	1700	-1	numeric	2	numeric	java.math.BigDecimal	0	0	131089	true	false	false	true	1	false	false	true	false
+numeric(10,2)	1700	655366	numeric(10,2)	2	numeric	java.math.BigDecimal	10	2	12	true	false	false	true	1	false	false	true	false
+numeric(1000,0)	1700	65536004	numeric(1000,0)	2	numeric	java.math.BigDecimal	1000	0	1001	true	false	false	true	1	false	false	true	false
+numeric(5)	1700	327684	numeric(5,0)	2	numeric	java.math.BigDecimal	5	0	6	true	false	false	true	1	false	false	true	false
+numeric(5,-2)	1700	329730	numeric(5,-2)	2	numeric	java.math.BigDecimal	5	2046	7	true	false	false	true	1	false	false	true	false
+numeric(3,5)	1700	196617	numeric(3,5)	2	numeric	java.math.BigDecimal	3	5	5	true	false	false	true	1	false	false	true	false
+decimal(18,4)	1700	1179656	numeric(18,4)	2	numeric	java.math.BigDecimal	18	4	20	true	false	false	true	1	false	false	true	false
+money	790	-1	money	8	money	org.stuntgres.util.PGmoney	2147483647	0	2147483647	false	true	true	true	1	false	false	true	false
+text	25	-1	text	12	text	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+varchar	1043	-1	character varying	12	varchar	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+varchar(10)	1043	14	character varying(10)	12	varchar	java.lang.String	10	0	10	false	true	false	true	1	false	false	true	false
+character varying(10485760)	1043	10485764	character varying(10485760)	12	varchar	java.lang.String	10485760	0	10485760	false	true	false	true	1	false	false	true	false
+bpchar	1042	-1	bpchar	1	bpchar	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+char(1)	1042	5	character(1)	1	bpchar	java.lang.String	1	0	1	false	true	false	true	1	false	false	true	false
+char(10)	1042	14	character(10)	1	bpchar	java.lang.String	10	0	10	false	true	false	true	1	false	false	true	false
+character	1042	5	character(1)	1	bpchar	java.lang.String	1	0	1	false	true	false	true	1	false	false	true	false
+name	19	-1	name	12	name	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+"char"	18	-1	"char"	1	char	java.lang.String	1	0	1	false	true	false	true	1	false	false	true	false
+bytea	17	-1	bytea	-2	bytea	[B	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+date	1082	-1	date	91	date	java.sql.Date	13	0	13	false	false	false	true	1	false	false	true	false
+time	1083	-1	time without time zone	92	time	java.sql.Time	15	6	15	false	false	false	true	1	false	false	true	false
+time(0)	1083	0	time(0) without time zone	92	time	java.sql.Time	8	0	8	false	false	false	true	1	false	false	true	false
+time(3)	1083	3	time(3) without time zone	92	time	java.sql.Time	12	3	12	false	false	false	true	1	false	false	true	false
+time(6)	1083	6	time(6) without time zone	92	time	java.sql.Time	15	6	15	false	false	false	true	1	false	false	true	false
+timetz	1266	-1	time with time zone	92	timetz	java.sql.Time	21	6	21	false	false	false	true	1	false	false	true	false
+timetz(3)	1266	3	time(3) with time zone	92	timetz	java.sql.Time	18	3	18	false	false	false	true	1	false	false	true	false
+timestamp	1114	-1	timestamp without time zone	93	timestamp	java.sql.Timestamp	29	6	29	false	false	false	true	1	false	false	true	false
+timestamp(0)	1114	0	timestamp(0) without time zone	93	timestamp	java.sql.Timestamp	22	0	22	false	false	false	true	1	false	false	true	false
+timestamp(3)	1114	3	timestamp(3) without time zone	93	timestamp	java.sql.Timestamp	26	3	26	false	false	false	true	1	false	false	true	false
+timestamp(6)	1114	6	timestamp(6) without time zone	93	timestamp	java.sql.Timestamp	29	6	29	false	false	false	true	1	false	false	true	false
+timestamptz	1184	-1	timestamp with time zone	93	timestamptz	java.sql.Timestamp	35	6	35	false	false	false	true	1	false	false	true	false
+timestamptz(0)	1184	0	timestamp(0) with time zone	93	timestamptz	java.sql.Timestamp	28	0	28	false	false	false	true	1	false	false	true	false
+timestamptz(3)	1184	3	timestamp(3) with time zone	93	timestamptz	java.sql.Timestamp	32	3	32	false	false	false	true	1	false	false	true	false
+interval	1186	-1	interval	1111	interval	org.stuntgres.util.PGInterval	49	6	49	false	false	false	true	1	false	false	true	false
+interval(3)	1186	2147418115	interval(3)	1111	interval	org.stuntgres.util.PGInterval	49	3	49	false	false	false	true	1	false	false	true	false
+interval year to month	1186	458751	interval year to month	1111	interval	org.stuntgres.util.PGInterval	49	65535	49	false	false	false	true	1	false	false	true	false
+interval day to second(2)	1186	470286338	interval day to second(2)	1111	interval	org.stuntgres.util.PGInterval	49	2	49	false	false	false	true	1	false	false	true	false
+interval second(0)	1186	268435456	interval second(0)	1111	interval	org.stuntgres.util.PGInterval	49	0	49	false	false	false	true	1	false	false	true	false
+interval year	1186	327679	interval year	1111	interval	org.stuntgres.util.PGInterval	49	65535	49	false	false	false	true	1	false	false	true	false
+interval hour to minute	1186	201392127	interval hour to minute	1111	interval	org.stuntgres.util.PGInterval	49	65535	49	false	false	false	true	1	false	false	true	false
+uuid	2950	-1	uuid	1111	uuid	java.util.UUID	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+json	114	-1	json	1111	json	org.stuntgres.util.PGobject	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+jsonb	3802	-1	jsonb	1111	jsonb	org.stuntgres.util.PGobject	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+xml	142	-1	xml	2009	xml	java.sql.SQLXML	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+bit	1560	1	bit(1)	-7	bit	java.lang.Boolean	1	0	1	false	false	false	true	1	false	false	true	false
+bit(8)	1560	8	bit(8)	-7	bit	java.lang.Boolean	8	0	8	false	false	false	true	1	false	false	true	false
+bit(1)	1560	1	bit(1)	-7	bit	java.lang.Boolean	1	0	1	false	false	false	true	1	false	false	true	false
+varbit	1562	-1	bit varying	1111	varbit	java.lang.String	2147483647	0	2147483647	false	false	false	true	1	false	false	true	false
+varbit(16)	1562	16	bit varying(16)	1111	varbit	java.lang.String	16	0	16	false	false	false	true	1	false	false	true	false
+inet	869	-1	inet	1111	inet	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+cidr	650	-1	cidr	1111	cidr	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+macaddr	829	-1	macaddr	1111	macaddr	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+macaddr8	774	-1	macaddr8	1111	macaddr8	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+point	600	-1	point	1111	point	org.stuntgres.geometric.PGpoint	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+box	603	-1	box	1111	box	org.stuntgres.geometric.PGbox	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+circle	718	-1	circle	1111	circle	org.stuntgres.geometric.PGcircle	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+line	628	-1	line	1111	line	org.stuntgres.geometric.PGline	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+lseg	601	-1	lseg	1111	lseg	org.stuntgres.geometric.PGlseg	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+path	602	-1	path	1111	path	org.stuntgres.geometric.PGpath	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+polygon	604	-1	polygon	1111	polygon	org.stuntgres.geometric.PGpolygon	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+tsvector	3614	-1	tsvector	1111	tsvector	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+tsquery	3615	-1	tsquery	1111	tsquery	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+refcursor	1790	-1	refcursor	2012	refcursor	java.sql.ResultSet	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+regclass	2205	-1	regclass	1111	regclass	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+xid	28	-1	xid	1111	xid	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+cid	29	-1	cid	1111	cid	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+tid	27	-1	tid	1111	tid	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+pg_lsn	3220	-1	pg_lsn	1111	pg_lsn	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+jsonpath	4072	-1	jsonpath	1111	jsonpath	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+int4range	3904	-1	int4range	1111	int4range	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+numrange	3906	-1	numrange	1111	numrange	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+tstzrange	3910	-1	tstzrange	1111	tstzrange	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+int2vector	22	-1	int2vector	1111	int2vector	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+oidvector	30	-1	oidvector	1111	oidvector	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+int4multirange	4451	-1	int4multirange	1111	int4multirange	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+mood	18729	-1	mood	12	mood	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+posint	18736	-1	posint	4	int4	java.lang.Integer	10	0	11	true	false	false	true	1	false	false	true	false
+shortname	18739	-1	shortname	12	varchar	java.lang.String	10	0	10	false	true	false	true	0	false	false	true	false
+pair	18743	-1	pair	2002	pair	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+"Mixed Case"	18745	-1	"Mixed Case"	12	"public"."Mixed Case"	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+s2.color	18749	-1	s2.color	12	"s2"."color"	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+s2."Odd.Name"	18753	-1	s2."Odd.Name"	2002	"s2"."Odd.Name"	java.lang.String	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+hstore	16550	-1	hstore	1111	hstore	java.util.Map	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+serial	23	-1	integer	4	serial	java.lang.Integer	10	0	11	true	false	false	true	0	true	false	true	false
+bigserial	20	-1	bigint	-5	bigserial	java.lang.Long	19	0	20	true	false	false	true	0	true	false	true	false
+smallserial	21	-1	smallint	5	smallserial	java.lang.Integer	5	0	6	true	false	false	true	0	true	false	true	false
+int4 NOT NULL	23	-1	integer	4	int4	java.lang.Integer	10	0	11	true	false	false	true	0	false	false	true	false
+int4 GENERATED ALWAYS AS IDENTITY	23	-1	integer	4	serial	java.lang.Integer	10	0	11	true	false	false	true	0	true	false	true	false
+bool[]	1000	-1	boolean[]	2003	_bool	java.sql.Array	1	0	1	false	false	false	true	1	false	false	true	false
+int2[]	1005	-1	smallint[]	2003	_int2	java.sql.Array	5	0	6	true	false	false	true	1	false	false	true	false
+int4[]	1007	-1	integer[]	2003	_int4	java.sql.Array	10	0	11	true	false	false	true	1	false	false	true	false
+int8[]	1016	-1	bigint[]	2003	_int8	java.sql.Array	19	0	20	true	false	false	true	1	false	false	true	false
+oid[]	1028	-1	oid[]	2003	_oid	java.sql.Array	10	0	10	false	false	false	true	1	false	false	true	false
+float4[]	1021	-1	real[]	2003	_float4	java.sql.Array	8	8	15	true	false	false	true	1	false	false	true	false
+float8[]	1022	-1	double precision[]	2003	_float8	java.sql.Array	17	17	25	true	false	false	true	1	false	false	true	false
+numeric[]	1231	-1	numeric[]	2003	_numeric	java.sql.Array	0	0	131089	true	false	false	true	1	false	false	true	false
+numeric(10,2)[]	1231	655366	numeric(10,2)[]	2003	_numeric	java.sql.Array	10	2	12	true	false	false	true	1	false	false	true	false
+money[]	791	-1	money[]	2003	_money	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+text[]	1009	-1	text[]	2003	_text	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+varchar[]	1015	-1	character varying[]	2003	_varchar	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+varchar(10)[]	1015	14	character varying(10)[]	2003	_varchar	java.sql.Array	10	0	10	false	true	false	true	1	false	false	true	false
+bpchar[]	1014	-1	bpchar[]	2003	_bpchar	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+char(3)[]	1014	7	character(3)[]	2003	_bpchar	java.sql.Array	3	0	3	false	true	false	true	1	false	false	true	false
+name[]	1003	-1	name[]	2003	_name	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+"char"[]	1002	-1	"char"[]	2003	_char	java.sql.Array	1	0	1	false	true	false	true	1	false	false	true	false
+bytea[]	1001	-1	bytea[]	2003	_bytea	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+date[]	1182	-1	date[]	2003	_date	java.sql.Array	13	0	13	false	false	false	true	1	false	false	true	false
+time[]	1183	-1	time without time zone[]	2003	_time	java.sql.Array	15	6	15	false	false	false	true	1	false	false	true	false
+time(3)[]	1183	3	time(3) without time zone[]	2003	_time	java.sql.Array	12	3	12	false	false	false	true	1	false	false	true	false
+timetz[]	1270	-1	time with time zone[]	2003	_timetz	java.sql.Array	21	6	21	false	false	false	true	1	false	false	true	false
+timestamp[]	1115	-1	timestamp without time zone[]	2003	_timestamp	java.sql.Array	29	6	29	false	false	false	true	1	false	false	true	false
+timestamp(3)[]	1115	3	timestamp(3) without time zone[]	2003	_timestamp	java.sql.Array	26	3	26	false	false	false	true	1	false	false	true	false
+timestamptz[]	1185	-1	timestamp with time zone[]	2003	_timestamptz	java.sql.Array	35	6	35	false	false	false	true	1	false	false	true	false
+interval[]	1187	-1	interval[]	2003	_interval	java.sql.Array	49	6	49	false	false	false	true	1	false	false	true	false
+uuid[]	2951	-1	uuid[]	2003	_uuid	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+json[]	199	-1	json[]	2003	_json	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+jsonb[]	3807	-1	jsonb[]	2003	_jsonb	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+xml[]	143	-1	xml[]	2003	_xml	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+bit[]	1561	1	bit(1)[]	2003	_bit	java.sql.Array	1	0	1	false	false	false	true	1	false	false	true	false
+bit(8)[]	1561	8	bit(8)[]	2003	_bit	java.sql.Array	8	0	8	false	false	false	true	1	false	false	true	false
+varbit[]	1563	-1	bit varying[]	2003	_varbit	java.sql.Array	2147483647	0	2147483647	false	false	false	true	1	false	false	true	false
+inet[]	1041	-1	inet[]	2003	_inet	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+cidr[]	651	-1	cidr[]	2003	_cidr	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+macaddr[]	1040	-1	macaddr[]	2003	_macaddr	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+point[]	1017	-1	point[]	2003	_point	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+box[]	1020	-1	box[]	2003	_box	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+circle[]	719	-1	circle[]	2003	_circle	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+line[]	629	-1	line[]	2003	_line	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+lseg[]	1018	-1	lseg[]	2003	_lseg	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+path[]	1019	-1	path[]	2003	_path	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+polygon[]	1027	-1	polygon[]	2003	_polygon	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+refcursor[]	2201	-1	refcursor[]	2003	_refcursor	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+mood[]	18728	-1	mood[]	2003	_mood	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+posint[]	18735	-1	posint[]	2003	_posint	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+pair[]	18742	-1	pair[]	2003	_pair	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+s2.color[]	18748	-1	s2.color[]	2003	"s2"."_color"	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+hstore[]	16555	-1	hstore[]	2003	_hstore	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+int4[][]	1007	-1	integer[]	2003	_int4	java.sql.Array	10	0	11	true	false	false	true	1	false	false	true	false
+tsvector[]	3643	-1	tsvector[]	2003	_tsvector	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+int4range[]	3905	-1	int4range[]	2003	_int4range	java.sql.Array	2147483647	0	2147483647	false	true	false	true	1	false	false	true	false
+NULL	-	-	-	12	text	java.lang.String	2147483647	0	2147483647	false	true	false	true	2	false	false	true	false
+'x'	-	-	-	12	text	java.lang.String	2147483647	0	2147483647	false	true	false	true	2	false	false	true	false
+1	-	-	-	4	int4	java.lang.Integer	10	0	11	true	false	false	true	2	false	false	true	false
+1.5	-	-	-	2	numeric	java.math.BigDecimal	0	0	131089	true	false	false	true	2	false	false	true	false
+1e0	-	-	-	2	numeric	java.math.BigDecimal	0	0	131089	true	false	false	true	2	false	false	true	false
+ROW(1,'a')	-	-	-	1111	record	java.lang.String	2147483647	0	2147483647	false	true	false	true	2	false	false	true	false
+ARRAY[1,2]	-	-	-	2003	_int4	java.sql.Array	10	0	11	true	false	false	true	2	false	false	true	false
+1::numeric(10,2)	-	-	-	2	numeric	java.math.BigDecimal	10	2	12	true	false	false	true	2	false	false	true	false
+'a'::varchar(5)	-	-	-	12	varchar	java.lang.String	5	0	5	false	true	false	true	2	false	false	true	false
+now()::timestamptz(2)	-	-	-	93	timestamptz	java.sql.Timestamp	31	2	31	false	false	false	true	2	false	false	true	false
+count(*)	-	-	-	-5	int8	java.lang.Long	19	0	20	true	false	false	true	2	false	false	true	false
+sum(1)	-	-	-	-5	int8	java.lang.Long	19	0	20	true	false	false	true	2	false	false	true	false
+avg(1)	-	-	-	2	numeric	java.math.BigDecimal	0	0	131089	true	false	false	true	2	false	false	true	false
+'a'::cstring	-	-	-	1111	cstring	java.lang.String	2147483647	0	2147483647	false	true	false	true	2	false	false	true	false
+''::void	-	-	-	1111	void	java.lang.String	2147483647	0	2147483647	false	true	false	true	2	false	false	true	false

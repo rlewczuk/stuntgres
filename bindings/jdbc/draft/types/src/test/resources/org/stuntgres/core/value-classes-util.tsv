@@ -1,0 +1,189 @@
+#case	result, or !class|SQLState (pgjdbc's unchecked exceptions are written as the PSQLException the driver raises)
+obj.new	null|null|true|null|0
+obj.set	json|{}|false|{}|false|true
+obj.hash.nullValue	false
+obj.hash.nullType	true
+obj.equals.same	true
+obj.equals.otherType	true
+obj.equals.otherValue	false
+obj.equals.null	false
+obj.equals.string	false
+obj.equals.bothNullValues	true
+obj.equals.nullValueVsValue	false|false
+obj.equals.nullTypes	true|true|true
+obj.clone	{}|[]|json|true
+obj.toString.null	null
+obj.serializable	json|{}
+interval.new	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[0]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[00:00:00]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 year 2 mons 3 days 04:05:06.789]	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.parse[-1 years -2 mons +3 days -04:05:06.789012]	-1y -2m 3d -4h -5mi -6.789012s whole=-6 micro=-789012 value=-1 years -2 mons 3 days -4 hours -5 mins -6.789012 secs null=false type=interval
+interval.parse[1 day]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[00:00:01]	0y 0m 0d 0h 0mi 1.0s whole=1 micro=0 value=1 secs null=false type=interval
+interval.parse[-00:00:00.000001]	0y 0m 0d 0h 0mi -1.0E-6s whole=0 micro=-1 value=-0.000001 secs null=false type=interval
+interval.parse[178000000 years]	178000000y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=178000000 years null=false type=interval
+interval.parse[1 mon]	0y 1m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 mons null=false type=interval
+interval.parse[2 years]	2y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=2 years null=false type=interval
+interval.parse[1 day 00:00:00.5]	0y 0m 1d 0h 0mi 0.5s whole=0 micro=500000 value=1 days 0.5 secs null=false type=interval
+interval.parse[-1 days]	0y 0m -1d 0h 0mi 0.0s whole=0 micro=0 value=-1 days null=false type=interval
+interval.parse[100:00:00]	0y 0m 0d 100h 0mi 0.0s whole=0 micro=0 value=100 hours null=false type=interval
+interval.parse[1 year -1 mons]	1y -1m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 years -1 mons null=false type=interval
+interval.parse[infinity]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[-infinity]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[3 days 04:05:06]	0y 0m 3d 4h 5mi 6.0s whole=6 micro=0 value=3 days 4 hours 5 mins 6 secs null=false type=interval
+interval.parse[00:00:01.5]	0y 0m 0d 0h 0mi 1.5s whole=1 micro=500000 value=1.5 secs null=false type=interval
+interval.parse[14 mons]	0y 14m 0d 0h 0mi 0.0s whole=0 micro=0 value=14 mons null=false type=interval
+interval.parse[1 day -00:00:01]	0y 0m 1d 0h 0mi -1.0s whole=-1 micro=0 value=1 days -1 secs null=false type=interval
+interval.parse[25:00:00]	0y 0m 0d 25h 0mi 0.0s whole=0 micro=0 value=25 hours null=false type=interval
+interval.parse[-00:59:59.999999]	0y 0m 0d 0h -59mi -59.999999s whole=-59 micro=-999999 value=-59 mins -59.999999 secs null=false type=interval
+interval.parse[]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[ ]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[abc]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 year 2 mons 3 days 04:05:06.789 ago]	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.parse[@ 1 year 2 mons 3 days 4 hours 5 mins 6.789 secs]	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.parse[@ 1 year 2 mons -3 days 4 hours 5 mins 6.789 secs ago]	-1y -2m 3d -4h -5mi -6.789s whole=-6 micro=-789000 value=-1 years -2 mons 3 days -4 hours -5 mins -6.789 secs null=false type=interval
+interval.parse[@ 0]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[P1Y2M3DT4H5M6.789S]	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.parse[PT0S]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[P-1Y-2M3DT-4H-5M-6.789012S]	-1y -2m 3d -4h -5mi -6.789012s whole=-6 micro=-789012 value=-1 years -2 mons 3 days -4 hours -5 mins -6.789012 secs null=false type=interval
+interval.parse[P1D]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[PT1S]	0y 0m 0d 0h 0mi 1.0s whole=1 micro=0 value=1 secs null=false type=interval
+interval.parse[+1-2 +3 +4:05:06.789]	0y 0m 0d 4h 5mi 6.789s whole=6 micro=789000 value=4 hours 5 mins 6.789 secs null=false type=interval
+interval.parse[1-2]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[3 4:05:06]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[-1-2 +3 -4:05:06.789012]	0y 0m 0d -4h -5mi -6.789012s whole=-6 micro=-789012 value=-4 hours -5 mins -6.789012 secs null=false type=interval
+interval.parse[1 year 2 months 3 days 4 hours 5 minutes 6 seconds]	1y 2m 3d 4h 5mi 6.0s whole=6 micro=0 value=1 years 2 mons 3 days 4 hours 5 mins 6 secs null=false type=interval
+interval.parse[1 years 2 mons]	1y 2m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 years 2 mons null=false type=interval
+interval.parse[1 hour]	0y 0m 0d 1h 0mi 0.0s whole=0 micro=0 value=1 hours null=false type=interval
+interval.parse[1 minute]	0y 0m 0d 0h 1mi 0.0s whole=0 micro=0 value=1 mins null=false type=interval
+interval.parse[1 second]	0y 0m 0d 0h 0mi 1.0s whole=1 micro=0 value=1 secs null=false type=interval
+interval.parse[1 week]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 decade]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 century]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 millennium]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1.5 days]	!PSQLException|42820
+interval.parse[1 day 2]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[04:05]	0y 0m 0d 4h 5mi 0.0s whole=0 micro=0 value=4 hours 5 mins null=false type=interval
+interval.parse[04:05:06]	0y 0m 0d 4h 5mi 6.0s whole=6 micro=0 value=4 hours 5 mins 6 secs null=false type=interval
+interval.parse[-04:05:06]	0y 0m 0d -4h -5mi -6.0s whole=-6 micro=0 value=-4 hours -5 mins -6 secs null=false type=interval
+interval.parse[+04:05:06]	0y 0m 0d 4h 5mi 6.0s whole=6 micro=0 value=4 hours 5 mins 6 secs null=false type=interval
+interval.parse[1 day +04:05:06]	0y 0m 1d 4h 5mi 6.0s whole=6 micro=0 value=1 days 4 hours 5 mins 6 secs null=false type=interval
+interval.parse[1 day -04:05]	0y 0m 1d -4h -5mi 0.0s whole=0 micro=0 value=1 days -4 hours -5 mins null=false type=interval
+interval.parse[10 days 00:00:00.000001]	0y 0m 10d 0h 0mi 1.0E-6s whole=0 micro=1 value=10 days 0.000001 secs null=false type=interval
+interval.parse[1 mons]	0y 1m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 mons null=false type=interval
+interval.parse[2 mon]	0y 2m 0d 0h 0mi 0.0s whole=0 micro=0 value=2 mons null=false type=interval
+interval.parse[1 yr]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 hr]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 min]	0y 0m 0d 0h 1mi 0.0s whole=0 micro=0 value=1 mins null=false type=interval
+interval.parse[1 sec]	0y 0m 0d 0h 0mi 1.0s whole=1 micro=0 value=1 secs null=false type=interval
+interval.parse[1 d]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 h]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 m]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 s]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[4:5:6]	!PSQLException|42820
+interval.parse[1 day 4:5:6.5]	!PSQLException|42820
+interval.parse[P1W]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[P1Y]	1y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 years null=false type=interval
+interval.parse[PT1H1M1S]	0y 0m 0d 1h 1mi 1.0s whole=1 micro=0 value=1 hours 1 mins 1 secs null=false type=interval
+interval.parse[P0001-02-03T04:05:06]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 YEAR 2 MONS]	1y 2m 0d 0h 0mi 0.0s whole=0 micro=0 value=1 years 2 mons null=false type=interval
+interval.parse[1 Day]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[00:00:00.1234567]	0y 0m 0d 0h 0mi 0.123457s whole=0 micro=123457 value=0.123457 secs null=false type=interval
+interval.parse[00:00:59.9999999]	0y 0m 0d 0h 0mi 60.0s whole=60 micro=0 value=60 secs null=false type=interval
+interval.parse[23:59:60]	0y 0m 0d 23h 59mi 60.0s whole=60 micro=0 value=23 hours 59 mins 60 secs null=false type=interval
+interval.parse[-1 year]	-1y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=-1 years null=false type=interval
+interval.parse[- 1 year]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1year]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 mon 2 years]	2y 1m 0d 0h 0mi 0.0s whole=0 micro=0 value=2 years 1 mons null=false type=interval
+interval.parse[2147483647 years]	2147483647y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=2147483647 years null=false type=interval
+interval.parse[2147483648 years]	!PSQLException|42820
+interval.parse[1 day 1 day]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[0.5 years]	!PSQLException|42820
+interval.parse[1e2 days]	!PSQLException|42820
+interval.parse[+1 day]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[1 day ago]	0y 0m 1d 0h 0mi 0.0s whole=0 micro=0 value=1 days null=false type=interval
+interval.parse[ago]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 microsecond]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1 millisecond]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse[1000 milliseconds]	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.parse.null	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=null null=true type=interval
+interval.setValue.null	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=null null=true type=interval
+interval.fields	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.fields.negative	-1y -2m -3d -4h -5mi -6.789012s whole=-6 micro=-789012 value=-1 years -2 mons -3 days -4 hours -5 mins -6.789012 secs null=false type=interval
+interval.fields.zero	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.fields.mixed	1y -2m 3d -4h 5mi -6.5s whole=-6 micro=-500000 value=1 years -2 mons 3 days -4 hours 5 mins -6.5 secs null=false type=interval
+interval.fields.overflow	0y 14m 40d 25h 61mi 61.5s whole=61 micro=500000 value=14 mons 40 days 25 hours 61 mins 61.5 secs null=false type=interval
+interval.fields.rounding	0y 0m 0d 0h 0mi 1.2345679999999999s whole=1 micro=234568 value=1.234568 secs null=false type=interval / 0y 0m 0d 0h 0mi 60.0s whole=60 micro=0 value=60 secs null=false type=interval / 0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.fields.negzero	0y 0m 0d 0h 0mi -0.5s whole=0 micro=-500000 value=-0.5 secs null=false type=interval / 0y 0m 0d -1h 0mi 0.5s whole=0 micro=500000 value=-1 hours 0.5 secs null=false type=interval / 0y 0m 0d 0h -1mi 0.0s whole=0 micro=0 value=-1 mins null=false type=interval
+interval.setters	1y 2m 3d 4h 5mi 6.5s whole=6 micro=500000 value=1 years 2 mons 3 days 4 hours 5 mins 6.5 secs null=false type=interval
+interval.setSeconds	0y 0m 1d 0h 0mi 2.0s whole=2 micro=0 value=1 days 2 secs null=false type=interval / 0y 0m 1d 0h 0mi -2.25s whole=-2 micro=-250000 value=1 days -2.25 secs null=false type=interval
+interval.setValue6	1y 2m 3d 4h 5mi 6.789s whole=6 micro=789000 value=1 years 2 mons 3 days 4 hours 5 mins 6.789 secs null=false type=interval
+interval.add.calendar	1614953906912
+interval.add.calendar.negative	1540879693334
+interval.add.calendar.micros	2|2
+interval.add.calendar.null	5
+interval.add.date	1578053784623
+interval.add.interval	1y 2m 3d 4h 5mi 6.5s whole=6 micro=500000 value=1 years 2 mons 3 days 4 hours 5 mins 6.5 secs null=false type=interval
+interval.add.interval.null	1y 2m 3d 4h 5mi 6.5s whole=6 micro=500000 value=1 years 2 mons 3 days 4 hours 5 mins 6.5 secs null=false type=interval
+interval.scale	3y 6m 9d 12h 15mi 19.5s whole=19 micro=500000 value=3 years 6 mons 9 days 12 hours 15 mins 19.5 secs null=false type=interval
+interval.scale.negative	-1y -2m -3d -4h -5mi -6.5s whole=-6 micro=-500000 value=-1 years -2 mons -3 days -4 hours -5 mins -6.5 secs null=false type=interval
+interval.scale.zero	0y 0m 0d 0h 0mi 0.0s whole=0 micro=0 value=0 secs null=false type=interval
+interval.equals	true|false|true|true|true|false|false|true
+interval.hashCode	-1144933301|-1574733816|-1574733816|168076519
+interval.clone	1y 2m 3d 4h 5mi 6.5s whole=6 micro=500000 value=1 years 2 mons 3 days 4 hours 5 mins 6.5 secs null=false type=interval / 9y 2m 3d 4h 5mi 6.5s whole=6 micro=500000 value=9 years 2 mons 3 days 4 hours 5 mins 6.5 secs null=false type=interval
+interval.toString	1 years 2 mons 3 days 4 hours 5 mins 6.5 secs|0 secs
+interval.setType	x
+money.new	0.0|false|$0.0|money|false
+money.double[12.34]	12.34|false|$12.34|money
+money.double[-12.34]	-12.34|false|-$12.34|money
+money.double[0.0]	0.0|false|$0.0|money
+money.double[1234567.89]	1234567.89|false|$1234567.89|money
+money.double[0.005]	0.005|false|$0.005|money
+money.double[1.0E15]	1.0E15|false|$1.0E15|money
+money.double[-0.001]	-0.001|false|-$0.001|money
+money.double[0.30000000000000004]	0.30000000000000004|false|$0.30000000000000004|money
+money.double[NaN]	NaN|false|$NaN|money
+money.double[0.3333333333333333]	0.3333333333333333|false|$0.3333333333333333|money
+money.parse[$12.34]	12.34|false|$12.34
+money.parse[-$12.34]	!PSQLException|42820
+money.parse[($12.34)]	-12.34|false|-$12.34
+money.parse[$1,234,567.89]	1234567.89|false|$1234567.89
+money.parse[12.34]	2.34|false|$2.34
+money.parse[$0.00]	0.0|false|$0.0
+money.parse[]	!PSQLException|42820
+money.parse[abc]	!PSQLException|42820
+money.parse[$]	!PSQLException|42820
+money.parse[-12.34]	12.34|false|$12.34
+money.parse[(12.34)]	-2.34|false|-$2.34
+money.parse[$-12.34]	-12.34|false|-$12.34
+money.parse[1,234]	234.0|false|$234.0
+money.parse[$1.5]	1.5|false|$1.5
+money.parse[ $1.00]	!PSQLException|42820
+money.parse[$1.00 ]	1.0|false|$1.0
+money.parse[€1.00]	1.0|false|$1.0
+money.parse[$92,233,720,368,547,758.07]	9.223372036854776E16|false|$9.223372036854776E16
+money.parse[-$92,233,720,368,547,758.08]	!PSQLException|42820
+money.parse[1e3]	!PSQLException|42820
+money.parse[NaN]	!PSQLException|42820
+money.parse[$1,23,4]	1234.0|false|$1234.0
+money.parse.null	0.0|true|null|true
+money.setValue.null	5.0|true|null
+money.equals	true|false|true|true|true|false|false
+money.hashCode	1107969900|34722418|34722418|-1003299197
+money.clone	1.5|9.0|money
+money.field	-$3.25|null|true
+money.toString	$1.5|$0.0
+pgtime.new	1234|null
+pgtime.cal	1234|true|Asia/Tokyo
+pgtime.setCalendar	true|null
+pgtime.equals	true|false|true|false|false|false|false|true|false
+pgtime.hashCode	false|true|true
+pgtime.clone	1|false|true|true
+pgtimestamp.new	1234|234000000|null
+pgtimestamp.cal	1234|true
+pgtimestamp.setCalendar	true|null
+pgtimestamp.equals	true|false|true|true|true|true|false|true|false
+pgtimestamp.hashCode	false|true|true
+pgtimestamp.clone	123|123456789|false|true

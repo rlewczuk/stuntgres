@@ -1,0 +1,389 @@
+#id	scs	sql	nativeSQL or !SQLState
+datetime-01	on	SELECT {d '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-02	on	SELECT {t '10:11:12'}	SELECT TIME '10:11:12'
+datetime-03	on	SELECT {ts '2020-01-02 10:11:12.5'}	SELECT TIMESTAMP '2020-01-02 10:11:12.5'
+datetime-04	on	SELECT {D '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-05	on	SELECT {T '10:11:12'}	SELECT TIME '10:11:12'
+datetime-06	on	SELECT {TS '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-07	on	SELECT {Ts '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-08	on	SELECT {tS '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-09	on	SELECT {d'2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-10	on	SELECT {d   '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-11	on	SELECT { d '2020-01-02'}	SELECT { d '2020-01-02'}
+datetime-12	on	SELECT {d\t'2020-01-02'}	SELECT {d\t'2020-01-02'}
+datetime-13	on	SELECT {d\n'2020-01-02'}	SELECT {d\n'2020-01-02'}
+datetime-14	on	SELECT {d ?}	SELECT {d $1}
+datetime-15	on	SELECT {d 2020}	SELECT {d 2020}
+datetime-16	on	SELECT {d '2020-01-02' }	SELECT DATE '2020-01-02' 
+datetime-17	on	SELECT {d '2020-01-02'} + 1	SELECT DATE '2020-01-02' + 1
+datetime-18	on	SELECT {d '2020-01-02'}, {t '01:02:03'}	SELECT DATE '2020-01-02', TIME '01:02:03'
+datetime-19	on	SELECT {d '2020-01-02}'}	!42601
+datetime-20	on	SELECT {d '2020-01-02''}	SELECT DATE '2020-01-02''
+datetime-21	on	SELECT {d '2020-01-02'	SELECT DATE '2020-01-02'
+datetime-22	on	SELECT {d	SELECT {d
+datetime-23	on	SELECT {d 	SELECT {d 
+datetime-24	on	SELECT {d '	SELECT DATE '
+datetime-25	on	SELECT {ts '2020-01-02'}}	SELECT TIMESTAMP '2020-01-02'}
+datetime-26	on	SELECT {d '2020-01-02' -- c\n}	SELECT DATE '2020-01-02' -- c\n
+datetime-27	on	SELECT {d '2020-01-02' /* } */}	SELECT DATE '2020-01-02' /*  */}
+datetime-28	on	SELECT {d E'2020-01-02'}	SELECT {d E'2020-01-02'}
+datetime-29	on	SELECT {d "x"}	SELECT {d "x"}
+datetime-30	on	SELECT {tx '1'}	SELECT {tx '1'}
+datetime-31	on	SELECT {ts'2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-32	on	SELECT {t '10:11:12'}::text	SELECT TIME '10:11:12'::text
+datetime-33	on	SELECT {d '2020-01-02'}{t '10:11:12'}	SELECT DATE '2020-01-02'TIME '10:11:12'
+datetime-34	on	{d '2020-01-02'}	DATE '2020-01-02'
+datetime-35	on	SELECT {d '?'}, ?	SELECT DATE '?', $1
+datetime-36	on	SELECT {d '2020-01-02' ?}	SELECT DATE '2020-01-02' $1
+datetime-37	on	SELECT {d '2020-01-02';}	SELECT DATE '2020-01-02'
+escape-01	on	SELECT 'a' LIKE 'a' {escape '\\'}	SELECT 'a' LIKE 'a' ESCAPE '\\'
+escape-02	on	SELECT 'a' LIKE 'a' {ESCAPE '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-03	on	SELECT 'a' LIKE ? {escape '!'}	SELECT 'a' LIKE $1 ESCAPE '!'
+escape-04	on	SELECT 'a' LIKE 'a' {escape'!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-05	on	SELECT 'a' LIKE 'a' {escape  '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-06	on	SELECT 'a' LIKE 'a' {escape ?}	SELECT 'a' LIKE 'a' {escape $1}
+escape-07	on	SELECT 'a' LIKE 'a' { escape '!'}	SELECT 'a' LIKE 'a' { escape '!'}
+escape-08	on	SELECT 'a' LIKE 'a' {Escape '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-09	on	SELECT 'a' LIKE 'a' {escape '}'}	!42601
+escape-10	on	SELECT 'a' LIKE 'a' {escape ''''}	SELECT 'a' LIKE 'a' ESCAPE ''''
+outerjoin-01	on	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = t2.a}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a
+outerjoin-02	on	SELECT * FROM {OJ t1 LEFT OUTER JOIN t2 ON t1.a = t2.a}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a
+outerjoin-03	on	SELECT * FROM {oj (t1 LEFT OUTER JOIN t2 ON t1.a = t2.a)}	SELECT * FROM (t1 LEFT OUTER JOIN t2 ON t1.a = t2.a)
+outerjoin-04	on	SELECT * FROM {oj "t1" LEFT OUTER JOIN t2 ON true}	SELECT * FROM "t1" LEFT OUTER JOIN t2 ON true
+outerjoin-05	on	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = ?}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = $1
+outerjoin-06	on	SELECT * FROM {oj t1 LEFT OUTER JOIN {oj t2 LEFT OUTER JOIN t3 ON true} ON true}	SELECT * FROM t1 LEFT OUTER JOIN {oj t2 LEFT OUTER JOIN t3 ON true ON true}
+outerjoin-07	on	SELECT * FROM {oj  t1 LEFT OUTER JOIN t2 ON true}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON true
+outerjoin-08	on	SELECT * FROM {oj 1}	SELECT * FROM {oj 1}
+outerjoin-09	on	SELECT * FROM {oj}	SELECT * FROM {oj}
+outerjoin-10	on	SELECT * FROM {ojt1 JOIN t2 ON true}	SELECT * FROM t1 JOIN t2 ON true
+outerjoin-11	on	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.b = '}'}	!42601
+outerjoin-12	on	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = {fn abs(t2.a)}}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = {fn abs(t2.a)}
+function-01	on	SELECT {fn abs(-1)}	SELECT abs(-1)
+function-02	on	SELECT {fn concat('a', 'b')}	SELECT ('a'|| 'b')
+function-03	on	SELECT {fn ucase({fn concat(a, b)})}	SELECT upper((a|| b))
+function-04	on	SELECT {fn user()}	SELECT user
+function-05	on	SELECT {fn now()}	SELECT now()
+function-06	on	SELECT {FN LCASE(x)}	SELECT lower(x)
+function-07	on	SELECT {fn  lcase(x)}	SELECT lower(x)
+function-08	on	SELECT {fn lcase (x)}	SELECT lower(x)
+function-09	on	SELECT {fn lcase( x )}	SELECT lower( x )
+function-10	on	SELECT {fn "quoted"(x)}	SELECT "quoted"(x)
+function-11	on	SELECT {fn lcase(x)} || 'y'	SELECT lower(x) || 'y'
+function-12	on	SELECT {fn lcase(x) extra}	SELECT lower(x) extra
+function-13	on	SELECT {fn lcase(x)extra}	SELECT lower(x)extra
+function-14	on	SELECT {fn curdate}	SELECT urdate
+function-15	on	SELECT {fn curdate()}	SELECT current_date
+function-16	on	SELECT {fn curdate( )}	!42601
+function-17	on	SELECT {fn curdate} + (1)	SELECT curdate} +(1)
+function-18	on	SELECT {fn lcase(x)	SELECT lower(x)
+function-19	on	SELECT {fn lcase(x	SELECT lower(x)
+function-20	on	SELECT {fn lcase(	!42601
+function-21	on	SELECT {fn lcase	SELECT case
+function-22	on	SELECT {fn 	SELECT {fn 
+function-23	on	SELECT {fn	SELECT {fn
+function-24	on	SELECT {fn}	SELECT {fn}
+function-25	on	SELECT {fn 1(x)}	SELECT {fn 1(x)}
+function-26	on	SELECT {fn (x)}	SELECT {fn (x)}
+function-27	on	SELECT {fn lcase(x))}	SELECT lower(x))
+function-28	on	SELECT {fn lcase((x))}	SELECT lower((x))
+function-29	on	SELECT {fn left('a,b', 2)}	SELECT substring('a,b' for  2)
+function-30	on	SELECT {fn left((1,2), 2)}	SELECT substring((1,2) for  2)
+function-31	on	SELECT {fn left(f(1,2), 2)}	SELECT substring(f(1,2) for  2)
+function-32	on	SELECT {fn left(a, )}	SELECT substring(a for  )
+function-33	on	SELECT {fn left(, 2)}	!42601
+function-34	on	SELECT {fn left(a,, 2)}	SELECT substring(a for  2)
+function-35	on	SELECT {fn left('a)', 2)}	SELECT substring('a)' for  2)
+function-36	on	SELECT {fn left("a,", 2)}	SELECT substring("a," for  2)
+function-37	on	SELECT {fn left($$a,)$$, 2)}	SELECT substring($$a,)$$ for  2)
+function-38	on	SELECT {fn left(a /* , */, 2)}	SELECT substring(a /* , */ for  2)
+function-39	on	SELECT {fn left(a -- ,\n, 2)}	SELECT substring(a -- ,\n for  2)
+function-40	on	SELECT {fn left(?, ?)}	SELECT substring($1 for  $2)
+function-41	on	SELECT {fn concat(?, {fn lcase(?)}, ?)}	SELECT ($1|| lower($2)|| $3)
+function-42	on	SELECT {fn concat({d '2020-01-01'}, {fn lcase('A')})}	SELECT (DATE '2020-01-01'|| lower('A'))
+function-43	on	SELECT {fn lcase({ts '2020-01-01 00:00:00'})}	SELECT lower(TIMESTAMP '2020-01-01 00:00:00')
+function-44	on	SELECT {fn lcase('{fn ucase(x)}')}	SELECT lower('{fn ucase(x)}')
+function-45	on	SELECT {fn lcase('a\\'b')}	!42601
+function-46	on	SELECT {fn lcase(x)}{fn ucase(y)}	SELECT lower(x)upper(y)
+function-47	on	SELECT {fn lcase(x)}, {fn ucase(y)}	SELECT lower(x), upper(y)
+function-48	on	SELECT {fn lcase(x)};SELECT {fn ucase(y)}	SELECT lower(x);SELECT upper(y)
+function-49	on	SELECT {fn LEFT(a, 2)}	SELECT substring(a for  2)
+function-50	on	SELECT {fn Left(a, 2)}	SELECT substring(a for  2)
+function-51	on	SELECT {fn pg_catalog.lower(x)}	SELECT pg_catalog.lower(x)
+function-52	on	SELECT {fn lcase(x)} FROM t WHERE {fn length(b)} > ?	SELECT lower(x) FROM t WHERE length(trim(trailing from b)) > $1
+function-53	on	SELECT {fn lcase(x) }	SELECT lower(x) 
+function-54	on	SELECT {fn lcase(x)\n}	SELECT lower(x)\n
+function-55	on	SELECT {fn\tlcase(x)}	SELECT {fn\tlcase(x)}
+function-56	on	SELECT {fn\nlcase(x)}	SELECT {fn\nlcase(x)}
+function-57	on	SELECT {fn lcase(x)} {fn ucase(y)	SELECT lower(x) upper(y)
+function-58	on	{fn lcase(x)}	lower(x)
+function-59	on	SELECT {fn lcase(x)}}	SELECT lower(x)}
+function-60	on	SELECT {fn concat(a, 'b}')}	SELECT (a|| 'b}')
+function-61	on	SELECT {fn f(a)} AS "}"	SELECT f(a) AS "}"
+function-62	on	SELECT {fn lcase(a} b)}	SELECT lower(a} b)
+function-63	on	SELECT {fn convert(a, SQL_INTEGER)}	SELECT convert(a, SQL_INTEGER)
+function-64	on	SELECT {fn cot(1)} + {fn  mod( 5 , 3 ) }	SELECT cot(1) + mod( 5 , 3 ) 
+function-65	on	SELECT {fn left(a, 2) || 'x'}	SELECT substring(a for  2) || 'x'
+function-66	on	SELECT {fn lcase(x)} -- {fn ucase(y)}\n, {fn ucase(z)}	SELECT lower(x) -- {fn ucase(y)}\n, upper(z)
+function-67	on	SELECT {fn lcase(x} )	SELECT lower(x} )
+function-68	on	SELECT {fn user}	SELECT ser
+function-69	on	SELECT {fn database()}, {fn user()}	SELECT current_database(), user
+literal-comment-01	on	SELECT '{d ''2020-01-01''}'	SELECT '{d ''2020-01-01''}'
+literal-comment-02	on	SELECT "{fn x()}" FROM (SELECT 1 AS "{fn x()}") s	SELECT "{fn x()}" FROM (SELECT 1 AS "{fn x()}") s
+literal-comment-03	on	SELECT 1 -- {d '2020-01-01'}	SELECT 1 -- {d '2020-01-01'}
+literal-comment-04	on	SELECT 1 /* {fn lcase(x)} */	SELECT 1 /* {fn lcase(x)} */
+literal-comment-05	on	SELECT $${d '2020-01-01'}$$	SELECT $${d '2020-01-01'}$$
+literal-comment-06	on	SELECT $q${fn lcase(x)}$q$	SELECT $q${fn lcase(x)}$q$
+literal-comment-07	on	SELECT E'{d \\'2020-01-01\\'}'	SELECT E'{d \\'2020-01-01\\'}'
+literal-comment-08	on	SELECT '{fn lcase(x)}', {fn lcase(y)}	SELECT '{fn lcase(x)}', lower(y)
+literal-comment-09	on	SELECT 1 /* /* {d '1'} */ */, {d '2020-01-01'}	SELECT 1 /* /* {d '1'} */ */, DATE '2020-01-01'
+literal-comment-10	on	SELECT 1 -- {fn\n, {fn lcase(x)}	SELECT 1 -- {fn\n, lower(x)
+unterminated-01	on	SELECT 'abc	!42601
+unterminated-02	on	SELECT "abc	!42601
+unterminated-03	on	SELECT /* abc	!42601
+unterminated-04	on	SELECT $$abc	!42601
+unterminated-05	on	SELECT $t$abc$T$	!42601
+unterminated-06	on	SELECT 1 -- abc	SELECT 1 -- abc
+unterminated-07	on	SELECT {fn lcase('abc)}	!42601
+unterminated-08	on	SELECT {d '2020-01-01} FROM t	SELECT DATE '2020-01-01 FROM t
+unterminated-09	on	SELECT 'a' 'b	!42601
+unterminated-10	on	SELECT '	!42601
+unterminated-11	on	SELECT "	!42601
+unterminated-12	on	SELECT /*	!42601
+unterminated-13	on	SELECT $$	!42601
+unterminated-14	on	SELECT /* /* */	!42601
+unterminated-15	on	SELECT E'abc\\'	!42601
+unterminated-16	on	SELECT 'abc\\'	SELECT 'abc\\'
+braces-01	on	SELECT '{}'::jsonb	SELECT '{}'::jsonb
+braces-02	on	SELECT {}	SELECT {}
+braces-03	on	SELECT }	SELECT }
+braces-04	on	SELECT {	SELECT {
+braces-05	on	SELECT {x}	SELECT {x}
+braces-06	on	SELECT {call f()}	SELECT {call f()}
+braces-07	on	{call f(?)}	{call f($1)}
+braces-08	on	{? = call f(?)}	{$1 = call f($2)}
+braces-09	on	{?= call f(?, ?)}	{$1= call f($2, $3)}
+braces-10	on	SELECT {limit 1}	SELECT {limit 1}
+braces-11	on	SELECT '{1,2}'::int[]	SELECT '{1,2}'::int[]
+braces-12	on	SELECT ARRAY[1] || '{2}'	SELECT ARRAY[1] || '{2}'
+braces-13	on	SELECT {{d '2020-01-01'}}	SELECT {DATE '2020-01-01'}
+braces-14	on	SELECT {d{d '2020-01-01'}}	SELECT {dDATE '2020-01-01'}
+braces-15	on	SELECT {fn}{d}	SELECT {fn}{d}
+braces-16	on	SELECT {D}	SELECT {D}
+braces-17	on	SELECT {t}	SELECT {t}
+braces-18	on	SELECT {ts}	SELECT {ts}
+braces-19	on	SELECT {escape}	SELECT {escape}
+braces-20	on	SELECT {oj}	SELECT {oj}
+braces-21	on	SELECT {dx '1'}	SELECT {dx '1'}
+braces-22	on	SELECT {tsx '1'}	SELECT {tsx '1'}
+braces-23	on	SELECT {fnx(1)}	SELECT x(1)
+braces-24	on	SELECT {escapex '1'}	SELECT {escapex '1'}
+braces-25	on	SELECT 1 {	SELECT 1 {
+braces-26	on	{	{
+braces-27	on	}	}
+braces-28	on	{}	{}
+braces-29	on	SELECT ?::json->'{a}'	SELECT $1::json->'{a}'
+braces-30	on	SELECT {"a":1}	SELECT {"a":1}
+braces-31	on	SELECT {d}	SELECT {d}
+braces-32	on	SELECT {d }	SELECT {d }
+placeholder-01	on	SELECT ?, {d '2020-01-01'}, ?	SELECT $1, DATE '2020-01-01', $2
+placeholder-02	on	SELECT {fn concat(?, ?)}, ?	SELECT ($1|| $2), $3
+placeholder-03	on	SELECT {fn left(?, 2)} ; SELECT {fn right(?, ?)}	SELECT substring($1 for  2) ; SELECT substring($1 from (length($2)+1- $3))
+placeholder-04	on	SELECT ?? , {fn lcase(?)}	SELECT ? , lower($1)
+placeholder-05	on	SELECT {fn concat(??, ?)}	SELECT (?|| $1)
+placeholder-06	on	SELECT {fn locate(?, ?, ?)}	SELECT ( $1*sign(position($2 in substring( $3 from  $4)))+position($5 in substring( $6 from  $7)))
+placeholder-07	on	SELECT {fn right(?, ?)}	SELECT substring($1 from (length($2)+1- $3))
+placeholder-08	on	SELECT {fn timestampadd(SQL_TSI_DAY, ?, ?)}	SELECT (CAST( $1||' day' as interval)+ $2)
+datetime-01	off	SELECT {d '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-02	off	SELECT {t '10:11:12'}	SELECT TIME '10:11:12'
+datetime-03	off	SELECT {ts '2020-01-02 10:11:12.5'}	SELECT TIMESTAMP '2020-01-02 10:11:12.5'
+datetime-04	off	SELECT {D '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-05	off	SELECT {T '10:11:12'}	SELECT TIME '10:11:12'
+datetime-06	off	SELECT {TS '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-07	off	SELECT {Ts '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-08	off	SELECT {tS '2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-09	off	SELECT {d'2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-10	off	SELECT {d   '2020-01-02'}	SELECT DATE '2020-01-02'
+datetime-11	off	SELECT { d '2020-01-02'}	SELECT { d '2020-01-02'}
+datetime-12	off	SELECT {d\t'2020-01-02'}	SELECT {d\t'2020-01-02'}
+datetime-13	off	SELECT {d\n'2020-01-02'}	SELECT {d\n'2020-01-02'}
+datetime-14	off	SELECT {d ?}	SELECT {d $1}
+datetime-15	off	SELECT {d 2020}	SELECT {d 2020}
+datetime-16	off	SELECT {d '2020-01-02' }	SELECT DATE '2020-01-02' 
+datetime-17	off	SELECT {d '2020-01-02'} + 1	SELECT DATE '2020-01-02' + 1
+datetime-18	off	SELECT {d '2020-01-02'}, {t '01:02:03'}	SELECT DATE '2020-01-02', TIME '01:02:03'
+datetime-19	off	SELECT {d '2020-01-02}'}	!42601
+datetime-20	off	SELECT {d '2020-01-02''}	SELECT DATE '2020-01-02''
+datetime-21	off	SELECT {d '2020-01-02'	SELECT DATE '2020-01-02'
+datetime-22	off	SELECT {d	SELECT {d
+datetime-23	off	SELECT {d 	SELECT {d 
+datetime-24	off	SELECT {d '	SELECT DATE '
+datetime-25	off	SELECT {ts '2020-01-02'}}	SELECT TIMESTAMP '2020-01-02'}
+datetime-26	off	SELECT {d '2020-01-02' -- c\n}	SELECT DATE '2020-01-02' -- c\n
+datetime-27	off	SELECT {d '2020-01-02' /* } */}	SELECT DATE '2020-01-02' /*  */}
+datetime-28	off	SELECT {d E'2020-01-02'}	SELECT {d E'2020-01-02'}
+datetime-29	off	SELECT {d "x"}	SELECT {d "x"}
+datetime-30	off	SELECT {tx '1'}	SELECT {tx '1'}
+datetime-31	off	SELECT {ts'2020-01-02 10:11:12'}	SELECT TIMESTAMP '2020-01-02 10:11:12'
+datetime-32	off	SELECT {t '10:11:12'}::text	SELECT TIME '10:11:12'::text
+datetime-33	off	SELECT {d '2020-01-02'}{t '10:11:12'}	SELECT DATE '2020-01-02'TIME '10:11:12'
+datetime-34	off	{d '2020-01-02'}	DATE '2020-01-02'
+datetime-35	off	SELECT {d '?'}, ?	SELECT DATE '?', $1
+datetime-36	off	SELECT {d '2020-01-02' ?}	SELECT DATE '2020-01-02' $1
+datetime-37	off	SELECT {d '2020-01-02';}	SELECT DATE '2020-01-02'
+escape-01	off	SELECT 'a' LIKE 'a' {escape '\\'}	SELECT 'a' LIKE 'a' ESCAPE '\\'
+escape-02	off	SELECT 'a' LIKE 'a' {ESCAPE '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-03	off	SELECT 'a' LIKE ? {escape '!'}	SELECT 'a' LIKE $1 ESCAPE '!'
+escape-04	off	SELECT 'a' LIKE 'a' {escape'!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-05	off	SELECT 'a' LIKE 'a' {escape  '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-06	off	SELECT 'a' LIKE 'a' {escape ?}	SELECT 'a' LIKE 'a' {escape $1}
+escape-07	off	SELECT 'a' LIKE 'a' { escape '!'}	SELECT 'a' LIKE 'a' { escape '!'}
+escape-08	off	SELECT 'a' LIKE 'a' {Escape '!'}	SELECT 'a' LIKE 'a' ESCAPE '!'
+escape-09	off	SELECT 'a' LIKE 'a' {escape '}'}	!42601
+escape-10	off	SELECT 'a' LIKE 'a' {escape ''''}	SELECT 'a' LIKE 'a' ESCAPE ''''
+outerjoin-01	off	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = t2.a}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a
+outerjoin-02	off	SELECT * FROM {OJ t1 LEFT OUTER JOIN t2 ON t1.a = t2.a}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a
+outerjoin-03	off	SELECT * FROM {oj (t1 LEFT OUTER JOIN t2 ON t1.a = t2.a)}	SELECT * FROM (t1 LEFT OUTER JOIN t2 ON t1.a = t2.a)
+outerjoin-04	off	SELECT * FROM {oj "t1" LEFT OUTER JOIN t2 ON true}	SELECT * FROM "t1" LEFT OUTER JOIN t2 ON true
+outerjoin-05	off	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = ?}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = $1
+outerjoin-06	off	SELECT * FROM {oj t1 LEFT OUTER JOIN {oj t2 LEFT OUTER JOIN t3 ON true} ON true}	SELECT * FROM t1 LEFT OUTER JOIN {oj t2 LEFT OUTER JOIN t3 ON true ON true}
+outerjoin-07	off	SELECT * FROM {oj  t1 LEFT OUTER JOIN t2 ON true}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON true
+outerjoin-08	off	SELECT * FROM {oj 1}	SELECT * FROM {oj 1}
+outerjoin-09	off	SELECT * FROM {oj}	SELECT * FROM {oj}
+outerjoin-10	off	SELECT * FROM {ojt1 JOIN t2 ON true}	SELECT * FROM t1 JOIN t2 ON true
+outerjoin-11	off	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.b = '}'}	!42601
+outerjoin-12	off	SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a = {fn abs(t2.a)}}	SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = {fn abs(t2.a)}
+function-01	off	SELECT {fn abs(-1)}	SELECT abs(-1)
+function-02	off	SELECT {fn concat('a', 'b')}	SELECT ('a'|| 'b')
+function-03	off	SELECT {fn ucase({fn concat(a, b)})}	SELECT upper((a|| b))
+function-04	off	SELECT {fn user()}	SELECT user
+function-05	off	SELECT {fn now()}	SELECT now()
+function-06	off	SELECT {FN LCASE(x)}	SELECT lower(x)
+function-07	off	SELECT {fn  lcase(x)}	SELECT lower(x)
+function-08	off	SELECT {fn lcase (x)}	SELECT lower(x)
+function-09	off	SELECT {fn lcase( x )}	SELECT lower( x )
+function-10	off	SELECT {fn "quoted"(x)}	SELECT "quoted"(x)
+function-11	off	SELECT {fn lcase(x)} || 'y'	SELECT lower(x) || 'y'
+function-12	off	SELECT {fn lcase(x) extra}	SELECT lower(x) extra
+function-13	off	SELECT {fn lcase(x)extra}	SELECT lower(x)extra
+function-14	off	SELECT {fn curdate}	SELECT urdate
+function-15	off	SELECT {fn curdate()}	SELECT current_date
+function-16	off	SELECT {fn curdate( )}	!42601
+function-17	off	SELECT {fn curdate} + (1)	SELECT curdate} +(1)
+function-18	off	SELECT {fn lcase(x)	SELECT lower(x)
+function-19	off	SELECT {fn lcase(x	SELECT lower(x)
+function-20	off	SELECT {fn lcase(	!42601
+function-21	off	SELECT {fn lcase	SELECT case
+function-22	off	SELECT {fn 	SELECT {fn 
+function-23	off	SELECT {fn	SELECT {fn
+function-24	off	SELECT {fn}	SELECT {fn}
+function-25	off	SELECT {fn 1(x)}	SELECT {fn 1(x)}
+function-26	off	SELECT {fn (x)}	SELECT {fn (x)}
+function-27	off	SELECT {fn lcase(x))}	SELECT lower(x))
+function-28	off	SELECT {fn lcase((x))}	SELECT lower((x))
+function-29	off	SELECT {fn left('a,b', 2)}	SELECT substring('a,b' for  2)
+function-30	off	SELECT {fn left((1,2), 2)}	SELECT substring((1,2) for  2)
+function-31	off	SELECT {fn left(f(1,2), 2)}	SELECT substring(f(1,2) for  2)
+function-32	off	SELECT {fn left(a, )}	SELECT substring(a for  )
+function-33	off	SELECT {fn left(, 2)}	!42601
+function-34	off	SELECT {fn left(a,, 2)}	SELECT substring(a for  2)
+function-35	off	SELECT {fn left('a)', 2)}	SELECT substring('a)' for  2)
+function-36	off	SELECT {fn left("a,", 2)}	SELECT substring("a," for  2)
+function-37	off	SELECT {fn left($$a,)$$, 2)}	SELECT substring($$a,)$$ for  2)
+function-38	off	SELECT {fn left(a /* , */, 2)}	SELECT substring(a /* , */ for  2)
+function-39	off	SELECT {fn left(a -- ,\n, 2)}	SELECT substring(a -- ,\n for  2)
+function-40	off	SELECT {fn left(?, ?)}	SELECT substring($1 for  $2)
+function-41	off	SELECT {fn concat(?, {fn lcase(?)}, ?)}	SELECT ($1|| lower($2)|| $3)
+function-42	off	SELECT {fn concat({d '2020-01-01'}, {fn lcase('A')})}	SELECT (DATE '2020-01-01'|| lower('A'))
+function-43	off	SELECT {fn lcase({ts '2020-01-01 00:00:00'})}	SELECT lower(TIMESTAMP '2020-01-01 00:00:00')
+function-44	off	SELECT {fn lcase('{fn ucase(x)}')}	SELECT lower('{fn ucase(x)}')
+function-45	off	SELECT {fn lcase('a\\'b')}	SELECT lower('a\\'b')
+function-46	off	SELECT {fn lcase(x)}{fn ucase(y)}	SELECT lower(x)upper(y)
+function-47	off	SELECT {fn lcase(x)}, {fn ucase(y)}	SELECT lower(x), upper(y)
+function-48	off	SELECT {fn lcase(x)};SELECT {fn ucase(y)}	SELECT lower(x);SELECT upper(y)
+function-49	off	SELECT {fn LEFT(a, 2)}	SELECT substring(a for  2)
+function-50	off	SELECT {fn Left(a, 2)}	SELECT substring(a for  2)
+function-51	off	SELECT {fn pg_catalog.lower(x)}	SELECT pg_catalog.lower(x)
+function-52	off	SELECT {fn lcase(x)} FROM t WHERE {fn length(b)} > ?	SELECT lower(x) FROM t WHERE length(trim(trailing from b)) > $1
+function-53	off	SELECT {fn lcase(x) }	SELECT lower(x) 
+function-54	off	SELECT {fn lcase(x)\n}	SELECT lower(x)\n
+function-55	off	SELECT {fn\tlcase(x)}	SELECT {fn\tlcase(x)}
+function-56	off	SELECT {fn\nlcase(x)}	SELECT {fn\nlcase(x)}
+function-57	off	SELECT {fn lcase(x)} {fn ucase(y)	SELECT lower(x) upper(y)
+function-58	off	{fn lcase(x)}	lower(x)
+function-59	off	SELECT {fn lcase(x)}}	SELECT lower(x)}
+function-60	off	SELECT {fn concat(a, 'b}')}	SELECT (a|| 'b}')
+function-61	off	SELECT {fn f(a)} AS "}"	SELECT f(a) AS "}"
+function-62	off	SELECT {fn lcase(a} b)}	SELECT lower(a} b)
+function-63	off	SELECT {fn convert(a, SQL_INTEGER)}	SELECT convert(a, SQL_INTEGER)
+function-64	off	SELECT {fn cot(1)} + {fn  mod( 5 , 3 ) }	SELECT cot(1) + mod( 5 , 3 ) 
+function-65	off	SELECT {fn left(a, 2) || 'x'}	SELECT substring(a for  2) || 'x'
+function-66	off	SELECT {fn lcase(x)} -- {fn ucase(y)}\n, {fn ucase(z)}	SELECT lower(x) -- {fn ucase(y)}\n, upper(z)
+function-67	off	SELECT {fn lcase(x} )	SELECT lower(x} )
+function-68	off	SELECT {fn user}	SELECT ser
+function-69	off	SELECT {fn database()}, {fn user()}	SELECT current_database(), user
+literal-comment-01	off	SELECT '{d ''2020-01-01''}'	SELECT '{d ''2020-01-01''}'
+literal-comment-02	off	SELECT "{fn x()}" FROM (SELECT 1 AS "{fn x()}") s	SELECT "{fn x()}" FROM (SELECT 1 AS "{fn x()}") s
+literal-comment-03	off	SELECT 1 -- {d '2020-01-01'}	SELECT 1 -- {d '2020-01-01'}
+literal-comment-04	off	SELECT 1 /* {fn lcase(x)} */	SELECT 1 /* {fn lcase(x)} */
+literal-comment-05	off	SELECT $${d '2020-01-01'}$$	SELECT $${d '2020-01-01'}$$
+literal-comment-06	off	SELECT $q${fn lcase(x)}$q$	SELECT $q${fn lcase(x)}$q$
+literal-comment-07	off	SELECT E'{d \\'2020-01-01\\'}'	SELECT E'{d \\'2020-01-01\\'}'
+literal-comment-08	off	SELECT '{fn lcase(x)}', {fn lcase(y)}	SELECT '{fn lcase(x)}', lower(y)
+literal-comment-09	off	SELECT 1 /* /* {d '1'} */ */, {d '2020-01-01'}	SELECT 1 /* /* {d '1'} */ */, DATE '2020-01-01'
+literal-comment-10	off	SELECT 1 -- {fn\n, {fn lcase(x)}	SELECT 1 -- {fn\n, lower(x)
+unterminated-01	off	SELECT 'abc	!42601
+unterminated-02	off	SELECT "abc	!42601
+unterminated-03	off	SELECT /* abc	!42601
+unterminated-04	off	SELECT $$abc	!42601
+unterminated-05	off	SELECT $t$abc$T$	!42601
+unterminated-06	off	SELECT 1 -- abc	SELECT 1 -- abc
+unterminated-07	off	SELECT {fn lcase('abc)}	!42601
+unterminated-08	off	SELECT {d '2020-01-01} FROM t	SELECT DATE '2020-01-01 FROM t
+unterminated-09	off	SELECT 'a' 'b	!42601
+unterminated-10	off	SELECT '	!42601
+unterminated-11	off	SELECT "	!42601
+unterminated-12	off	SELECT /*	!42601
+unterminated-13	off	SELECT $$	!42601
+unterminated-14	off	SELECT /* /* */	!42601
+unterminated-15	off	SELECT E'abc\\'	!42601
+unterminated-16	off	SELECT 'abc\\'	!42601
+braces-01	off	SELECT '{}'::jsonb	SELECT '{}'::jsonb
+braces-02	off	SELECT {}	SELECT {}
+braces-03	off	SELECT }	SELECT }
+braces-04	off	SELECT {	SELECT {
+braces-05	off	SELECT {x}	SELECT {x}
+braces-06	off	SELECT {call f()}	SELECT {call f()}
+braces-07	off	{call f(?)}	{call f($1)}
+braces-08	off	{? = call f(?)}	{$1 = call f($2)}
+braces-09	off	{?= call f(?, ?)}	{$1= call f($2, $3)}
+braces-10	off	SELECT {limit 1}	SELECT {limit 1}
+braces-11	off	SELECT '{1,2}'::int[]	SELECT '{1,2}'::int[]
+braces-12	off	SELECT ARRAY[1] || '{2}'	SELECT ARRAY[1] || '{2}'
+braces-13	off	SELECT {{d '2020-01-01'}}	SELECT {DATE '2020-01-01'}
+braces-14	off	SELECT {d{d '2020-01-01'}}	SELECT {dDATE '2020-01-01'}
+braces-15	off	SELECT {fn}{d}	SELECT {fn}{d}
+braces-16	off	SELECT {D}	SELECT {D}
+braces-17	off	SELECT {t}	SELECT {t}
+braces-18	off	SELECT {ts}	SELECT {ts}
+braces-19	off	SELECT {escape}	SELECT {escape}
+braces-20	off	SELECT {oj}	SELECT {oj}
+braces-21	off	SELECT {dx '1'}	SELECT {dx '1'}
+braces-22	off	SELECT {tsx '1'}	SELECT {tsx '1'}
+braces-23	off	SELECT {fnx(1)}	SELECT x(1)
+braces-24	off	SELECT {escapex '1'}	SELECT {escapex '1'}
+braces-25	off	SELECT 1 {	SELECT 1 {
+braces-26	off	{	{
+braces-27	off	}	}
+braces-28	off	{}	{}
+braces-29	off	SELECT ?::json->'{a}'	SELECT $1::json->'{a}'
+braces-30	off	SELECT {"a":1}	SELECT {"a":1}
+braces-31	off	SELECT {d}	SELECT {d}
+braces-32	off	SELECT {d }	SELECT {d }
+placeholder-01	off	SELECT ?, {d '2020-01-01'}, ?	SELECT $1, DATE '2020-01-01', $2
+placeholder-02	off	SELECT {fn concat(?, ?)}, ?	SELECT ($1|| $2), $3
+placeholder-03	off	SELECT {fn left(?, 2)} ; SELECT {fn right(?, ?)}	SELECT substring($1 for  2) ; SELECT substring($1 from (length($2)+1- $3))
+placeholder-04	off	SELECT ?? , {fn lcase(?)}	SELECT ? , lower($1)
+placeholder-05	off	SELECT {fn concat(??, ?)}	SELECT (?|| $1)
+placeholder-06	off	SELECT {fn locate(?, ?, ?)}	SELECT ( $1*sign(position($2 in substring( $3 from  $4)))+position($5 in substring( $6 from  $7)))
+placeholder-07	off	SELECT {fn right(?, ?)}	SELECT substring($1 from (length($2)+1- $3))
+placeholder-08	off	SELECT {fn timestampadd(SQL_TSI_DAY, ?, ?)}	SELECT (CAST( $1||' day' as interval)+ $2)

@@ -1,0 +1,178 @@
+#case	result, or !class|SQLState (pgjdbc's unchecked exceptions are written as the PSQLException the driver raises)
+obj.equals.subclass	false|false
+point.new	0.0/0.0 null=false value=(0.0,0.0)|point|false
+point.xy	1.0/2.5 null=false value=(1.0,2.5)|-0.0/1.0E300 null=false value=(-0.0,1.0E300)|NaN/-Infinity null=false value=(NaN,-Infinity)|1.0E-7/1.23456789012E11 null=false value=(1.0E-7,1.23456789012E11)|0.1/100.0 null=false value=(0.1,100.0)
+point.parse[(1,2)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[1,2]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[(1.5,-2e3)]	1.5/-2000.0 null=false value=(1.5,-2000.0)
+point.parse[ ( 1 , 2 ) ]	!PSQLException|42821
+point.parse[(NaN,Infinity)]	NaN/Infinity null=false value=(NaN,Infinity)
+point.parse[]	!PSQLException|42821
+point.parse[(1)]	!PSQLException|42821
+point.parse[(1,2,3)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[(a,b)]	!PSQLException|42821
+point.parse[((1,2))]	!PSQLException|42821
+point.parse[(1,2]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[1,2)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[(1.0,2.0)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[(-0,0)]	-0.0/0.0 null=false value=(-0.0,0.0)
+point.parse[(1e400,0)]	Infinity/0.0 null=false value=(Infinity,0.0)
+point.parse[(,)]	!PSQLException|42821
+point.parse[( 1,2)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[(1 ,2)]	1.0/2.0 null=false value=(1.0,2.0)
+point.parse[[1,2]]	!PSQLException|42821
+point.parse[<1,2>]	!PSQLException|42821
+point.parse[(1;2)]	!PSQLException|42821
+point.parse.null	0.0/0.0 null=true value=null
+point.setValue.null	1.0/2.0 null=true value=null|true
+point.setValue.afterNull	3.0/4.0 null=false value=(3.0,4.0)
+point.translate	2.0/1.0 null=false value=(2.0,1.0)|2.5/1.25 null=false value=(2.5,1.25)
+point.move	5.0/6.0 null=false value=(5.0,6.0)|0.5/0.25 null=false value=(0.5,0.25)
+point.setLocation	7.0/8.0 null=false value=(7.0,8.0)
+point.null.ops	1.0/1.0 null=false value=(1.0,1.0)|2.0/3.0 null=false value=(2.0,3.0)
+point.equals	true|false|true|true|true|false|true|false
+point.hashCode	2146435072|0|0|-262144
+point.clone	1.0/2.0 null=false value=(1.0,2.0)|9.0/2.0 null=false value=(9.0,2.0)|point
+point.field	null|(5.0,2.0)
+point.toString	(1.0,2.0)|(0.0,0.0)
+box.new	null|null|box|true
+box.xyxy	1.0/2.0;3.0/4.0;|(1.0,2.0),(3.0,4.0)
+box.points	1.0/2.0;3.0/4.0;|(1.0,2.0),(3.0,4.0)|true
+box.parse[(1,2),(3,4)]	1.0/2.0;3.0/4.0;|(1.0,2.0),(3.0,4.0)
+box.parse[(3,4),(1,2)]	3.0/4.0;1.0/2.0;|(3.0,4.0),(1.0,2.0)
+box.parse[((1,2),(3,4))]	!PSQLException|42821
+box.parse[1,2,3,4]	!PSQLException|42821
+box.parse[(1,2)]	!PSQLException|42821
+box.parse[]	!PSQLException|42821
+box.parse[(1,2),(3,4),(5,6)]	!PSQLException|42821
+box.parse[(a,b),(c,d)]	!PSQLException|42821
+box.parse[ (1,2) , (3,4) ]	!PSQLException|42821
+box.parse[[(1,2),(3,4)]]	!PSQLException|42821
+box.parse[(1,2);(3,4)]	!PSQLException|42821
+box.parse[(1,2)(3,4)]	!PSQLException|42821
+box.parse.null	null|null|true
+box.setValue.null	null|null
+box.equals	true|true|true|true|false|false|false|false
+box.hashCode	2145910784|0|2145910784|true
+box.clone	(1.0,2.0),(3.0,4.0)|(9.0,2.0),(3.0,4.0)|true
+box.clone.null	null|null
+circle.new	null|0.0|null|circle|true
+circle.xyr	1.0/2.0 null=false value=(1.0,2.0)|3.5|<(1.0,2.0),3.5>
+circle.pointr	true|<(1.0,2.0),3.0>
+circle.parse[<(1,2),3>]	1.0/2.0 null=false value=(1.0,2.0)|3.0|<(1.0,2.0),3.0>
+circle.parse[((1,2),3)]	!PSQLException|42821
+circle.parse[(1,2),3]	1.0/2.0 null=false value=(1.0,2.0)|3.0|<(1.0,2.0),3.0>
+circle.parse[1,2,3]	!PSQLException|42821
+circle.parse[<(1,2),3]	1.0/2.0 null=false value=(1.0,2.0)|3.0|<(1.0,2.0),3.0>
+circle.parse[]	!PSQLException|42821
+circle.parse[<(1,2)>]	!PSQLException|42821
+circle.parse[<(a,b),c>]	!PSQLException|42821
+circle.parse[ < ( 1 , 2 ) , 3 > ]	!PSQLException|42821
+circle.parse[<(1,2),-3>]	1.0/2.0 null=false value=(1.0,2.0)|-3.0|<(1.0,2.0),-3.0>
+circle.parse[<(1,2),3,4>]	!PSQLException|42821
+circle.parse[<(1.5,2.5),1e10>]	1.5/2.5 null=false value=(1.5,2.5)|1.0E10|<(1.5,2.5),1.0E10>
+circle.parse[<1,2,3>]	!PSQLException|42821
+circle.parse.null	null|0.0|null|true
+circle.setValue.null	null|3.0|null
+circle.equals	true|false|true|false|false|false|false
+circle.hashCode	1088946176|0|-565351551
+circle.clone	<(1.0,2.0),3.0>|<(9.0,2.0),8.0>
+circle.clone.null	null|null
+line.new	0.0/0.0/0.0|{0.0,0.0,0.0}|line|false
+line.abc	1.0/2.0/3.5|{1.0,2.0,3.5}
+line.xyxy[0.0, 0.0, 1.0, 1.0]	1.0/-1.0/0.0|{1.0,-1.0,0.0}
+line.xyxy[1.0, 2.0, 3.0, 4.0]	1.0/-1.0/1.0|{1.0,-1.0,1.0}
+line.xyxy[1.0, 2.0, 1.0, 5.0]	-1.0/0.0/3.0|{-1.0,0.0,3.0}
+line.xyxy[1.0, 2.0, 4.0, 2.0]	0.0/-1.0/2.0|{0.0,-1.0,2.0}
+line.xyxy[1.0, 2.0, 1.0, 2.0]	-1.0/0.0/3.0|{-1.0,0.0,3.0}
+line.xyxy[0.0, 0.0, 2.0, 1.0]	0.5/-1.0/0.0|{0.5,-1.0,0.0}
+line.xyxy[-1.0, 5.0, 3.0, -7.0]	-3.0/-1.0/2.0|{-3.0,-1.0,2.0}
+line.points	1.0/-1.0/0.0|{1.0,-1.0,0.0}
+line.lseg	1.0/-1.0/1.0|{1.0,-1.0,1.0}
+line.parse[{1,2,3}]	1.0/2.0/3.0|{1.0,2.0,3.0}
+line.parse[[(0,0),(1,1)]]	1.0/1.0/0.0|{1.0,1.0,0.0}
+line.parse[{0,-1,0}]	0.0/-1.0/0.0|{0.0,-1.0,0.0}
+line.parse[]	0.0/0.0/0.0|{0.0,0.0,0.0}
+line.parse[{1,2}]	!PSQLException|42821
+line.parse[{1,2,3,4}]	!PSQLException|42821
+line.parse[{a,b,c}]	!PSQLException|42821
+line.parse[[(1,2),(3,4)]]	2.0/2.0/2.0|{2.0,2.0,2.0}
+line.parse[((1,2),(3,4))]	0.0/0.0/0.0|{0.0,0.0,0.0}
+line.parse[(1,2),(3,4)]	0.0/0.0/0.0|{0.0,0.0,0.0}
+line.parse[ { 1 , 2 , 3 } ]	!PSQLException|42821
+line.parse[{1.5,-2.5,1e10}]	1.5/-2.5/1.0E10|{1.5,-2.5,1.0E10}
+line.parse[[(1,2),(1,5)]]	0.0/3.0/2.0|{0.0,3.0,2.0}
+line.parse[[(1,2),(1,2)]]	0.0/0.0/2.0|{0.0,0.0,2.0}
+line.parse[1,2,3]	0.0/0.0/0.0|{0.0,0.0,0.0}
+line.parse[[(1,2)]]	!PSQLException|42821
+line.parse.null	0.0/0.0/0.0|null|true
+line.setValue.null	1.0/2.0/3.0|null
+line.equals	true|false|true|true|true|false|false
+line.hashCode	-1247770484|-1890515194|445996012|-1890515194
+line.clone	{1.0,2.0,3.0}|{9.0,2.0,3.0}
+lseg.new	null|null|lseg|true
+lseg.xyxy	1.0/2.0;3.0/4.5;|[(1.0,2.0),(3.0,4.5)]
+lseg.points	1.0/2.0;3.0/4.0;|[(1.0,2.0),(3.0,4.0)]|true
+lseg.parse[[(1,2),(3,4)]]	1.0/2.0;3.0/4.0;|[(1.0,2.0),(3.0,4.0)]
+lseg.parse[((1,2),(3,4))]	!PSQLException|42821
+lseg.parse[(1,2),(3,4)]	1.0/2.0;3.0/4.0;|[(1.0,2.0),(3.0,4.0)]
+lseg.parse[1,2,3,4]	!PSQLException|42821
+lseg.parse[]	!PSQLException|42821
+lseg.parse[[(1,2)]]	!PSQLException|42821
+lseg.parse[[(1,2),(3,4),(5,6)]]	!PSQLException|42821
+lseg.parse[[(a,b),(c,d)]]	!PSQLException|42821
+lseg.parse[ [ ( 1 , 2 ) , ( 3 , 4 ) ] ]	!PSQLException|42821
+lseg.parse[[(1,2),(3,4)]	1.0/2.0;3.0/4.0;|[(1.0,2.0),(3.0,4.0)]
+lseg.parse.null	null|null|true
+lseg.setValue.null	null|null
+lseg.equals	true|true|true|false|false|false
+lseg.hashCode	2145910784|0|true
+lseg.clone	[(1.0,2.0),(3.0,4.0)]|[(9.0,2.0),(3.0,4.0)]
+lseg.clone.null	null|null
+path.new	false|null|null|path|true
+path.points.open	true|true|false|[(1.0,2.0),(3.0,4.0)]
+path.points.closed	false|false|true|((1.0,2.0),(3.0,4.0))
+path.points.empty	[]|()
+path.points.null	null|null
+path.parse[((1,2),(3,4))]	false|1.0/2.0;3.0/4.0;|((1.0,2.0),(3.0,4.0))
+path.parse[[(1,2),(3,4)]]	true|1.0/2.0;3.0/4.0;|[(1.0,2.0),(3.0,4.0)]
+path.parse[((0,0))]	false|0.0/0.0;|((0.0,0.0))
+path.parse[[(1,2),(3,4),(5,6)]]	true|1.0/2.0;3.0/4.0;5.0/6.0;|[(1.0,2.0),(3.0,4.0),(5.0,6.0)]
+path.parse[(1,2),(3,4)]	!PSQLException|42821
+path.parse[1,2,3,4]	!PSQLException|42821
+path.parse[]	!PSQLException|42821
+path.parse[()]	false||()
+path.parse[[]]	true||[]
+path.parse[((1,2),(3,4)]	false|1.0/2.0;3.0/4.0;|((1.0,2.0),(3.0,4.0))
+path.parse[[(a,b)]]	!PSQLException|42821
+path.parse[ [ ( 1 , 2 ) , ( 3 , 4 ) ] ]	!PSQLException|42821
+path.parse[((1,2))]	false|1.0/2.0;|((1.0,2.0))
+path.parse[[(1,2)]	!PSQLException|42821
+path.parse[<(1,2)>]	!PSQLException|42821
+path.parse.null	false|null|null|true
+path.setValue.null	true|null|null
+path.openclose	[(1.0,2.0),(3.0,4.0)]|((1.0,2.0),(3.0,4.0))
+path.equals	true|false|false|true|false|false|false|false
+path.hashCode	2117733647|2117739413|0|1231|1506518161
+path.clone	[(1.0,2.0),(3.0,4.0)]|((9.0,2.0),(3.0,4.0))
+path.clone.null	null|null
+polygon.new	null|null|polygon|true
+polygon.points	true|((1.0,2.0),(3.0,4.0))
+polygon.points.empty	()
+polygon.points.null	null|null
+polygon.parse[((1,2),(3,4),(5,6))]	1.0/2.0;3.0/4.0;5.0/6.0;|((1.0,2.0),(3.0,4.0),(5.0,6.0))
+polygon.parse[((0,0))]	0.0/0.0;|((0.0,0.0))
+polygon.parse[(1,2),(3,4)]	!PSQLException|42821
+polygon.parse[1,2,3,4]	!PSQLException|42821
+polygon.parse[]	|()
+polygon.parse[()]	|()
+polygon.parse[[(1,2),(3,4)]]	!PSQLException|42821
+polygon.parse[((a,b))]	!PSQLException|42821
+polygon.parse[ ( ( 1 , 2 ) , ( 3 , 4 ) ) ]	!PSQLException|42821
+polygon.parse[((1,2),(3,4)]	1.0/2.0;3.0/4.0;|((1.0,2.0),(3.0,4.0))
+polygon.parse.null	null|null|true
+polygon.setValue.null	null|null
+polygon.equals	true|false|true|false|false|false|false
+polygon.hashCode	2116550656|0|0|623771648
+polygon.clone	((1.0,2.0),(3.0,4.0))|((9.0,2.0),(3.0,4.0))
+polygon.clone.null	null|null

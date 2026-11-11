@@ -1,0 +1,52 @@
+#case	Abstract of Connection.createArrayOf(type, elements): element type name, JDBC type, getArray(), toString()
+int4 Integer[]{1,2,3}	Array:int4:4:Integer[Integer:1,Integer:2,Integer:3]:toString={"1","2","3"}
+int4 Integer[]{}	Array:int4:4:Integer[]:toString={}
+int4 Integer[]{1,null}	Array:int4:4:Integer[Integer:1,null]:toString={"1",NULL}
+int4 Integer[][]{{1,2},{3,4}}	Array:int4:4:Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]:toString={{"1","2"},{"3","4"}}
+int4 Integer[][]{{1,2},{3}}	?repr!java.nio.BufferUnderflowException|-|null
+int4 Integer[][]{{},{}}	Array:int4:4:Integer[][Integer[],Integer[]]:toString={{},{}}
+int4 Integer[][]{}	Array:int4:4:Integer[][]:toString={}
+int4 Integer[][]{{1},null}	!java.lang.NullPointerException|-|Cannot read the array length because "array" is null
+int4 Integer[][][]{{{1}}}	Array:int4:4:Integer[][][Integer[][Integer[Integer:1]]]:toString={{{"1"}}}
+int4 Object[]{"1",2L,3.0}	Array:int4:4:Integer[Integer:1,Integer:2,Integer:3]:toString={"1","2","3.0"}
+int4 Object[]{Object[]{1},Object[]{2}}	Array:int4:4:Integer[][Integer[Integer:1],Integer[Integer:2]]:toString={{"1"},{"2"}}
+int4 String[]{"1","x"}	Array:int4:4:!org.stuntgres.util.PSQLException|22003|Bad value for type int : x:toString={"1","x"}
+int4 null	Array:int4:4:null:toString=\N
+int4 Object[]{int[]{1,2}}	Array:int4:4:Integer[][Integer[Integer:1,Integer:2]]:toString={{1,2}}
+INT4 Integer[]{1}	Array:int4:4:Integer[Integer:1]:toString={"1"}
+integer Integer[]{1}	Array:int4:4:Integer[Integer:1]:toString={"1"}
+int Integer[]{1}	Array:int4:4:Integer[Integer:1]:toString={"1"}
+nosuchtype Integer[]{1}	!org.stuntgres.util.PSQLException|42602|Unable to find server array type for provided name nosuchtype.
+null Integer[]{1}	!org.stuntgres.util.PSQLException|42602|Unable to find server array type for provided name null.
+int2 Short[]{1,-1}	Array:int2:5:Short[Short:1,Short:-1]:toString={"1","-1"}
+int8 Long[]{9223372036854775807}	Array:int8:-5:Long[Long:9223372036854775807]:toString={"9223372036854775807"}
+float4 Float[]{1.5,NaN,Inf}	Array:float4:7:Float[Float:0x1.8p0,Float:NaN,Float:Infinity,Float:0x1.99999ap-4]:toString={"1.5","NaN","Infinity","0.1"}
+float8 Double[]{1.5,NaN,-Inf,1e300}	Array:float8:8:Double[Double:0x1.8p0,Double:NaN,Double:-Infinity,Double:0x1.7e43c8800759cp996,Double:0x1.999999999999ap-4]:toString={"1.5","NaN","-Infinity","1.0E300","0.1"}
+numeric BigDecimal[]{1.50,null,1E+3}	Array:numeric:2:BigDecimal[BigDecimal:1.50,null,BigDecimal:1E+3]:toString={"1.50",NULL,"1E+3"}
+bool Boolean[]{true,false,null}	Array:bool:-7:Boolean[Boolean:true,Boolean:false,null]:toString={1,0,NULL}
+text String[] special	Array:text:12:String[String:a b,String:c,d,String:e"f,String:g\\h,null,String:NULL,String:,String:{x},String:null,String:a'b,String:tab\there,String:nl\nx,String: lead,String:ü😀,String:a;b,String:}]:toString={"a b","c,d","e\\"f","g\\\\h",NULL,"NULL","","{x}","null","a'b","tab\there","nl\nx"," lead","ü😀","a;b","}"}
+text String[][]	Array:text:12:String[][String[String:a,String:b],String[String:c,null]]:toString={{"a","b"},{"c",NULL}}
+varchar String[]{a}	Array:varchar:12:String[String:a]:toString={"a"}
+text Object[]{1,true,2.5}	Array:text:12:String[String:1,String:true,String:2.5]:toString={"1","true","2.5"}
+bytea byte[][]	Array:bytea:-2:byte[][byte[]:00ff41,byte[]:,null]:toString={"\\\\x00ff41","\\\\x",NULL}
+bytea Object[]{byte[]}	!java.lang.UnsupportedOperationException|-|byte[] nested inside Object[]
+date Date[]	Array:date:91:Date[Date:1577923200000,null]:toString={"2020-01-02",NULL}
+timestamp Timestamp[]	Array:timestamp:93:Timestamp[Timestamp:1577959872123/123456789]:toString={"2020-01-02 10:11:12.123456789"}
+timestamptz Timestamp[]	Array:timestamptz:93:Timestamp[Timestamp:1577959872500/500000000]:toString={"2020-01-02 10:11:12.5"}
+time Time[]	Array:time:92:Time[Time:36672000]:toString={"10:11:12"}
+uuid UUID[]	Array:uuid:1111:UUID[UUID:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,null]:toString={"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",NULL}
+json String[]	Array:json:1111:String[String:{"a":1},String:[1,2]]:toString={"{\\"a\\":1}","[1,2]"}
+point PGpoint[]	Array:point:1111:Object[org.stuntgres.geometric.PGpoint:point:(1.0,2.0),org.stuntgres.geometric.PGpoint:point:(3.0,4.0)]:toString={"(1.0,2.0)","(3.0,4.0)"}
+box PGbox[]	Array:box:1111:Object[org.stuntgres.geometric.PGbox:box:(1.0,2.0),(3.0,4.0),org.stuntgres.geometric.PGbox:box:(5.0,6.0),(7.0,8.0)]:toString={"(1.0,2.0),(3.0,4.0)";"(5.0,6.0),(7.0,8.0)"}
+mood String[]	Array:mood:12:String[String:ok,String:sad]:toString={"ok","sad"}
+s2.color String[]	Array:"s2"."color":12:String[String:red]:toString={"red"}
+int4 int[]{1,2}	Array:int4:4:Integer[Integer:1,Integer:2]:toString={"1","2"}
+int8 long[]{1,2}	Array:int8:-5:Long[Long:1,Long:2]:toString={"1","2"}
+float8 double[]{1.5,NaN}	Array:float8:8:Double[Double:0x1.8p0,Double:NaN]:toString={"1.5","NaN"}
+float4 float[]{1.5}	Array:float4:7:Float[Float:0x1.8p0]:toString={"1.5"}
+int2 short[]{1}	Array:int2:5:Short[Short:1]:toString={"1"}
+bool boolean[]{true,false}	Array:bool:-7:Boolean[Boolean:true,Boolean:false]:toString={1,0}
+int4 int[][]{{1,2},{3,4}}	Array:int4:4:Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]:toString={{"1","2"},{"3","4"}}
+text int[]{1,2}	Array:text:12:String[String:1,String:2]:toString={1,2}
+int4 String(not array)	!org.stuntgres.util.PSQLException|07006|Invalid elements x
+int4 null (PGConnection)	Array:int4:4:null:toString=\N

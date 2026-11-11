@@ -1,0 +1,291 @@
+#getter	class	SQLState	message of pgjdbc ({value} is the column text)	cells	example
+getNString	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getNString(int) is not yet implemented.	4080	bool-001
+getByte	PSQLException	22003	Bad value for type byte : {value}	2694	bool-001
+getShort	PSQLException	22003	Bad value for type short : {value}	2592	bool-001
+getInt	PSQLException	22003	Bad value for type int : {value}	2508	bool-001
+getLong	PSQLException	22003	Bad value for type long : {value}	2400	bool-001
+getFloat	PSQLException	22003	Bad value for type float : {value}	2280	bool-001
+getDouble	PSQLException	22003	Bad value for type double : {value}	2280	bool-001
+getBigDecimal	PSQLException	22003	Bad value for type BigDecimal : {value}	2346	bool-001
+getBigDecimal(scale=2)	PSQLException	22003	Bad value for type BigDecimal : {value}	2346	bool-001
+getBigDecimal(scale=0)	PSQLException	22003	Bad value for type BigDecimal : {value}	2346	bool-001
+getNCharacterStream	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getNCharacterStream(int) is not yet implemented.	4080	bool-001
+getDate	ArrayIndexOutOfBoundsException	-	(unchecked exception; the message depends on the JVM)	2238	bool-001
+getDate(cal)	ArrayIndexOutOfBoundsException	-	(unchecked exception; the message depends on the JVM)	2238	bool-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: t	36	bool-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: t	36	bool-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: t	36	bool-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: t	36	bool-001
+getObject(map)	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getObjectImpl(int,Map) is not yet implemented.	4080	bool-001
+getObject(String)	PSQLException	22023	conversion to {class} from {sql type} not supported	3180	bool-001
+getObject(Byte)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Short)	PSQLException	22023	conversion to {class} from {sql type} not supported	3996	bool-001
+getObject(Integer)	PSQLException	22023	conversion to {class} from {sql type} not supported	3912	bool-001
+getObject(Long)	PSQLException	22023	conversion to {class} from {sql type} not supported	3954	bool-001
+getObject(Float)	PSQLException	22023	conversion to {class} from {sql type} not supported	3930	bool-001
+getObject(Double)	PSQLException	22023	conversion to {class} from {sql type} not supported	3852	bool-001
+getObject(BigDecimal)	PSQLException	22023	conversion to {class} from {sql type} not supported	3822	bool-001
+getObject(BigInteger)	PSQLException	22023	conversion to {class} from {sql type} not supported	3954	bool-001
+getObject(Number)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Character)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(byte[])	PSQLException	22023	conversion to {class} from {sql type} not supported	3996	bool-001
+getObject(Date)	PSQLException	22023	conversion to {class} from {sql type} not supported	3912	bool-001
+getObject(Time)	PSQLException	22023	conversion to {class} from {sql type} not supported	3894	bool-001
+getObject(Timestamp)	PSQLException	22023	conversion to {class} from {sql type} not supported	3684	bool-001
+getObject(java.util.Date)	PSQLException	22023	conversion to {class} from {sql type} not supported	3684	bool-001
+getObject(Calendar)	PSQLException	22023	conversion to {class} from {sql type} not supported	3684	bool-001
+getObject(GregorianCalendar)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(LocalDate)	PSQLException	42821	Cannot convert the column of type {TYPE} to requested type {class}.	3030	bool-001
+getObject(LocalTime)	PSQLException	42821	Cannot convert the column of type {TYPE} to requested type {class}.	3288	bool-001
+getObject(LocalDateTime)	PSQLException	42821	Cannot convert the column of type {TYPE} to requested type {class}.	3168	bool-001
+getObject(OffsetDateTime)	PSQLException	42821	Cannot convert the column of type {TYPE} to requested type {class}.	2946	bool-001
+getObject(OffsetTime)	PSQLException	42821	Cannot convert the column of type {TYPE} to requested type {class}.	3288	bool-001
+getObject(ZonedDateTime)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Instant)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Duration)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(UUID)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	3306	bool-001
+getObject(InetAddress)	PSQLException	22023	Invalid Inet data.	2670	bool-001
+getObject(Array)	PSQLException	22023	conversion to {class} from {sql type} not supported	3306	bool-001
+getObject(Blob)	PSQLException	22023	conversion to {class} from {sql type} not supported	3894	bool-001
+getObject(Clob)	PSQLException	22023	conversion to {class} from {sql type} not supported	3954	bool-001
+getObject(NClob)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(SQLXML)	PSQLException	22023	conversion to {class} from {sql type} not supported	4032	bool-001
+getObject(URL)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Map)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Object)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(InputStream)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(Reader)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(int)	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(String[])	PSQLException	22023	conversion to {class} from {sql type} not supported	4056	bool-001
+getObject(PGInterval)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	3894	bool-001
+getObject(PGmoney)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4020	bool-001
+getObject(PGpoint)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4032	bool-001
+getObject(PGbox)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4044	bool-001
+getObject(PGcircle)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4044	bool-001
+getObject(PGline)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4044	bool-001
+getObject(PGlseg)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4050	bool-001
+getObject(PGpath)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4038	bool-001
+getObject(PGpolygon)	ClassCastException	-	(unchecked exception; the message depends on the JVM)	4050	bool-001
+getURL	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getURL(int) is not yet implemented.	4080	bool-001
+getRef	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getRef(int) is not yet implemented.	4080	bool-001
+getRowId	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getRowId(int) is not yet implemented.	4080	bool-001
+getBlob	PSQLException	22003	Bad value for type long : {value}	2400	bool-001
+getClob	PSQLException	22003	Bad value for type long : {value}	2400	bool-001
+getNClob	SQLFeatureNotSupportedException	0A000	Method org.postgresql.jdbc.PgResultSet.getNClob(int) is not yet implemented.	4080	bool-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: f	18	bool-002
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: f	18	bool-002
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: f	18	bool-002
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: f	18	bool-002
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 0	66	int2-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 0	66	int2-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 0	66	int2-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 0	66	int2-001
+getObject(Boolean)	PSQLException	22023	conversion to {class} from {sql type} not supported	3996	int2-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 1	114	int2-002
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 1	114	int2-002
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 1	114	int2-002
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 1	114	int2-002
+getBoolean	PSQLException	42846	Cannot cast to boolean: "{value}"	2988	int2-003
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: -1	36	int2-003
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: -1	36	int2-003
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: -1	36	int2-003
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: -1	36	int2-003
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: {value}	2136	int2-004
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: {value}	2136	int2-004
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: {value}	2076	int2-004
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: {value}	2076	int2-004
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 65	6	int4-011
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 65	6	int4-011
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 65	6	int4-011
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 65	6	int4-011
+getDate	PSQLException	22007	Bad value for type timestamp/date/time: {value}	474	int8-004
+getDate(cal)	PSQLException	22007	Bad value for type timestamp/date/time: {value}	474	int8-004
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: -0	18	float4-002
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: -0	18	float4-002
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: -0	18	float4-002
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: -0	18	float4-002
+getObject(BigDecimal)	PSQLException	22003	Bad value for type BigDecimal : {value}	18	numeric-008
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 42	6	numeric-036
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 42	6	numeric-036
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 42	6	numeric-036
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 42	6	numeric-036
+getObject(PGobject)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGInterval)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGmoney)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGpoint)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGbox)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGcircle)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGline)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGlseg)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGpath)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject(PGpolygon)	PSQLException	42820	Conversion of money failed.	12	money-003
+getObject	PSQLException	22003	Bad value for type double : {value}	24	money-004
+getObject(Double)	PSQLException	22003	Bad value for type double : {value}	24	money-004
+getObject(UUID)	PSQLException	22003	Bad value for type double : {value}	24	money-004
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 	36	text-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 	36	text-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 	36	text-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 	36	text-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: a	12	text-002
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: a	12	text-002
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: a	12	text-002
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: a	12	text-002
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 😀	6	text-005
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 😀	6	text-005
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 😀	6	text-005
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 😀	6	text-005
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: no	6	text-012
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: no	6	text-012
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: no	6	text-012
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: no	6	text-012
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: on	6	text-013
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: on	6	text-013
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: on	6	text-013
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: on	6	text-013
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: y	12	text-017
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: y	12	text-017
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: y	12	text-017
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: y	12	text-017
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: n	6	text-018
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: n	6	text-018
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: n	6	text-018
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: n	6	text-018
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 2	6	text-037
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 2	6	text-037
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 2	6	text-037
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 2	6	text-037
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: +5	6	text-044
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: +5	6	text-044
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: +5	6	text-044
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: +5	6	text-044
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: .5	6	text-079
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: .5	6	text-079
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: .5	6	text-079
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: .5	6	text-079
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 5.	6	text-080
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 5.	6	text-080
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 5.	6	text-080
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 5.	6	text-080
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: １２	6	text-085
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: １２	6	text-085
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: １２	6	text-085
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: １２	6	text-085
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: Y	6	text-095
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: Y	6	text-095
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: Y	6	text-095
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: Y	6	text-095
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: N	6	text-096
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: N	6	text-096
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: N	6	text-096
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: N	6	text-096
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: ON	6	text-097
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: ON	6	text-097
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: ON	6	text-097
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: ON	6	text-097
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: No	6	text-099
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: No	6	text-099
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: No	6	text-099
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: No	6	text-099
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: oN	6	text-100
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: oN	6	text-100
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: oN	6	text-100
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: oN	6	text-100
+getTime	PSQLException	22007	Bad value for type timestamp/date/time:{value} 	6	bpchar-004
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time:{value} 	6	bpchar-004
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time:{value} 	6	bpchar-004
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time:{value} 	6	bpchar-004
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: x	18	bpchar-006
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: x	18	bpchar-006
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: x	18	bpchar-006
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: x	18	bpchar-006
+getObject(Blob)	PSQLException	22003	Bad value for type long : {value}	54	bytea-001
+getObject(OffsetDateTime)	DateTimeException	-	(unchecked exception; the message depends on the JVM)	6	timetz-004
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: []	6	jsonb-007
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: []	6	jsonb-007
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: []	6	jsonb-007
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: []	6	jsonb-007
+getObject(Boolean)	PSQLException	42846	Cannot cast to boolean: "{value}"	12	bit-003
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: c1	6	refcursor-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: c1	6	refcursor-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: c1	6	refcursor-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: c1	6	refcursor-001
+getObject	PSQLException	34000	ERROR: cursor "c1" does not exist	6	refcursor-001
+getObject(UUID)	PSQLException	34000	ERROR: cursor "c1" does not exist	6	refcursor-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: ok	6	enum-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: ok	6	enum-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: ok	6	enum-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: ok	6	enum-001
+getObject(Boolean)	PSQLException	22023	conversion to class java.lang.Boolean from "s2"."color" not supported	12	enum-003
+getObject(Byte)	PSQLException	22023	conversion to class java.lang.Byte from "s2"."color" not supported	12	enum-003
+getObject(Short)	PSQLException	22023	conversion to class java.lang.Short from "s2"."color" not supported	12	enum-003
+getObject(Integer)	PSQLException	22023	conversion to class java.lang.Integer from "s2"."color" not supported	12	enum-003
+getObject(Long)	PSQLException	22023	conversion to class java.lang.Long from "s2"."color" not supported	12	enum-003
+getObject(Float)	PSQLException	22023	conversion to class java.lang.Float from "s2"."color" not supported	12	enum-003
+getObject(Double)	PSQLException	22023	conversion to class java.lang.Double from "s2"."color" not supported	12	enum-003
+getObject(BigDecimal)	PSQLException	22023	conversion to class java.math.BigDecimal from "s2"."color" not supported	12	enum-003
+getObject(BigInteger)	PSQLException	22023	conversion to class java.math.BigInteger from "s2"."color" not supported	12	enum-003
+getObject(Number)	PSQLException	22023	conversion to class java.lang.Number from "s2"."color" not supported	12	enum-003
+getObject(Character)	PSQLException	22023	conversion to class java.lang.Character from "s2"."color" not supported	12	enum-003
+getObject(byte[])	PSQLException	22023	conversion to class [B from "s2"."color" not supported	12	enum-003
+getObject(Date)	PSQLException	22023	conversion to class java.sql.Date from "s2"."color" not supported	12	enum-003
+getObject(Time)	PSQLException	22023	conversion to class java.sql.Time from "s2"."color" not supported	12	enum-003
+getObject(Timestamp)	PSQLException	22023	conversion to class java.sql.Timestamp from "s2"."color" not supported	12	enum-003
+getObject(java.util.Date)	PSQLException	22023	conversion to class java.util.Date from "s2"."color" not supported	12	enum-003
+getObject(Calendar)	PSQLException	22023	conversion to class java.util.Calendar from "s2"."color" not supported	12	enum-003
+getObject(GregorianCalendar)	PSQLException	22023	conversion to class java.util.GregorianCalendar from "s2"."color" not supported	12	enum-003
+getObject(ZonedDateTime)	PSQLException	22023	conversion to class java.time.ZonedDateTime from "s2"."color" not supported	12	enum-003
+getObject(Instant)	PSQLException	22023	conversion to class java.time.Instant from "s2"."color" not supported	12	enum-003
+getObject(Duration)	PSQLException	22023	conversion to class java.time.Duration from "s2"."color" not supported	12	enum-003
+getObject(Array)	PSQLException	22023	conversion to interface java.sql.Array from "s2"."color" not supported	12	enum-003
+getObject(Blob)	PSQLException	22023	conversion to interface java.sql.Blob from "s2"."color" not supported	12	enum-003
+getObject(Clob)	PSQLException	22023	conversion to interface java.sql.Clob from "s2"."color" not supported	12	enum-003
+getObject(NClob)	PSQLException	22023	conversion to interface java.sql.NClob from "s2"."color" not supported	12	enum-003
+getObject(SQLXML)	PSQLException	22023	conversion to interface java.sql.SQLXML from "s2"."color" not supported	12	enum-003
+getObject(URL)	PSQLException	22023	conversion to class java.net.URL from "s2"."color" not supported	12	enum-003
+getObject(Map)	PSQLException	22023	conversion to interface java.util.Map from "s2"."color" not supported	12	enum-003
+getObject(Object)	PSQLException	22023	conversion to class java.lang.Object from "s2"."color" not supported	12	enum-003
+getObject(InputStream)	PSQLException	22023	conversion to class java.io.InputStream from "s2"."color" not supported	12	enum-003
+getObject(Reader)	PSQLException	22023	conversion to class java.io.Reader from "s2"."color" not supported	12	enum-003
+getObject(int)	PSQLException	22023	conversion to int from "s2"."color" not supported	12	enum-003
+getObject(String[])	PSQLException	22023	conversion to class [Ljava.lang.String; from "s2"."color" not supported	12	enum-003
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: 5	6	domain-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 5	6	domain-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: 5	6	domain-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: 5	6	domain-001
+getTime	PSQLException	22007	Bad value for type timestamp/date/time: {}	24	array-001
+getTime(cal)	PSQLException	22007	Bad value for type timestamp/date/time: {}	24	array-001
+getTimestamp	PSQLException	22007	Bad value for type timestamp/date/time: {}	24	array-001
+getTimestamp(cal)	PSQLException	22007	Bad value for type timestamp/date/time: {}	24	array-001
+getObject(String)	PSQLException	22023	conversion to class java.lang.String from "s2"."_color" not supported	12	array-070
+getObject(Boolean)	PSQLException	22023	conversion to class java.lang.Boolean from "s2"."_color" not supported	12	array-070
+getObject(Byte)	PSQLException	22023	conversion to class java.lang.Byte from "s2"."_color" not supported	12	array-070
+getObject(Short)	PSQLException	22023	conversion to class java.lang.Short from "s2"."_color" not supported	12	array-070
+getObject(Integer)	PSQLException	22023	conversion to class java.lang.Integer from "s2"."_color" not supported	12	array-070
+getObject(Long)	PSQLException	22023	conversion to class java.lang.Long from "s2"."_color" not supported	12	array-070
+getObject(Float)	PSQLException	22023	conversion to class java.lang.Float from "s2"."_color" not supported	12	array-070
+getObject(Double)	PSQLException	22023	conversion to class java.lang.Double from "s2"."_color" not supported	12	array-070
+getObject(BigDecimal)	PSQLException	22023	conversion to class java.math.BigDecimal from "s2"."_color" not supported	12	array-070
+getObject(BigInteger)	PSQLException	22023	conversion to class java.math.BigInteger from "s2"."_color" not supported	12	array-070
+getObject(Number)	PSQLException	22023	conversion to class java.lang.Number from "s2"."_color" not supported	12	array-070
+getObject(Character)	PSQLException	22023	conversion to class java.lang.Character from "s2"."_color" not supported	12	array-070
+getObject(byte[])	PSQLException	22023	conversion to class [B from "s2"."_color" not supported	12	array-070
+getObject(Date)	PSQLException	22023	conversion to class java.sql.Date from "s2"."_color" not supported	12	array-070
+getObject(Time)	PSQLException	22023	conversion to class java.sql.Time from "s2"."_color" not supported	12	array-070
+getObject(Timestamp)	PSQLException	22023	conversion to class java.sql.Timestamp from "s2"."_color" not supported	12	array-070
+getObject(java.util.Date)	PSQLException	22023	conversion to class java.util.Date from "s2"."_color" not supported	12	array-070
+getObject(Calendar)	PSQLException	22023	conversion to class java.util.Calendar from "s2"."_color" not supported	12	array-070
+getObject(GregorianCalendar)	PSQLException	22023	conversion to class java.util.GregorianCalendar from "s2"."_color" not supported	12	array-070
+getObject(ZonedDateTime)	PSQLException	22023	conversion to class java.time.ZonedDateTime from "s2"."_color" not supported	12	array-070
+getObject(Instant)	PSQLException	22023	conversion to class java.time.Instant from "s2"."_color" not supported	12	array-070
+getObject(Duration)	PSQLException	22023	conversion to class java.time.Duration from "s2"."_color" not supported	12	array-070
+getObject(Blob)	PSQLException	22023	conversion to interface java.sql.Blob from "s2"."_color" not supported	12	array-070
+getObject(Clob)	PSQLException	22023	conversion to interface java.sql.Clob from "s2"."_color" not supported	12	array-070
+getObject(NClob)	PSQLException	22023	conversion to interface java.sql.NClob from "s2"."_color" not supported	12	array-070
+getObject(SQLXML)	PSQLException	22023	conversion to interface java.sql.SQLXML from "s2"."_color" not supported	12	array-070
+getObject(URL)	PSQLException	22023	conversion to class java.net.URL from "s2"."_color" not supported	12	array-070
+getObject(Map)	PSQLException	22023	conversion to interface java.util.Map from "s2"."_color" not supported	12	array-070
+getObject(Object)	PSQLException	22023	conversion to class java.lang.Object from "s2"."_color" not supported	12	array-070
+getObject(InputStream)	PSQLException	22023	conversion to class java.io.InputStream from "s2"."_color" not supported	12	array-070
+getObject(Reader)	PSQLException	22023	conversion to class java.io.Reader from "s2"."_color" not supported	12	array-070
+getObject(int)	PSQLException	22023	conversion to int from "s2"."_color" not supported	12	array-070
+getObject(String[])	PSQLException	22023	conversion to class [Ljava.lang.String; from "s2"."_color" not supported	12	array-070

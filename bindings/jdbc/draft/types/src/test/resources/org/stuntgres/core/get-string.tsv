@@ -1,0 +1,731 @@
+#id	jvm	session	getString	getNString|getNCharacterStream	getAsciiStream	getUnicodeStream	getCharacterStream	getObject(String)
+bool-001	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	!PSQLException|22023
+bool-002	*	*	String:f	!SQLFeatureNotSupportedException|0A000	InputStream:66	InputStream:66	Reader:f	!PSQLException|22023
+int2-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+int2-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+int2-003	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	!PSQLException|22023
+int2-004	*	*	String:32767	!SQLFeatureNotSupportedException|0A000	InputStream:3332373637	InputStream:3332373637	Reader:32767	!PSQLException|22023
+int2-005	*	*	String:-32768	!SQLFeatureNotSupportedException|0A000	InputStream:2d3332373638	InputStream:2d3332373638	Reader:-32768	!PSQLException|22023
+int2-006	*	*	String:127	!SQLFeatureNotSupportedException|0A000	InputStream:313237	InputStream:313237	Reader:127	!PSQLException|22023
+int2-007	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+int2-008	*	*	String:-129	!SQLFeatureNotSupportedException|0A000	InputStream:2d313239	InputStream:2d313239	Reader:-129	!PSQLException|22023
+int2-009	*	*	String:255	!SQLFeatureNotSupportedException|0A000	InputStream:323535	InputStream:323535	Reader:255	!PSQLException|22023
+int4-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+int4-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+int4-003	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	!PSQLException|22023
+int4-004	*	*	String:2147483647	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363437	InputStream:32313437343833363437	Reader:2147483647	!PSQLException|22023
+int4-005	*	*	String:-2147483648	!SQLFeatureNotSupportedException|0A000	InputStream:2d32313437343833363438	InputStream:2d32313437343833363438	Reader:-2147483648	!PSQLException|22023
+int4-006	*	*	String:32767	!SQLFeatureNotSupportedException|0A000	InputStream:3332373637	InputStream:3332373637	Reader:32767	!PSQLException|22023
+int4-007	*	*	String:32768	!SQLFeatureNotSupportedException|0A000	InputStream:3332373638	InputStream:3332373638	Reader:32768	!PSQLException|22023
+int4-008	*	*	String:-32769	!SQLFeatureNotSupportedException|0A000	InputStream:2d3332373639	InputStream:2d3332373639	Reader:-32769	!PSQLException|22023
+int4-009	*	*	String:127	!SQLFeatureNotSupportedException|0A000	InputStream:313237	InputStream:313237	Reader:127	!PSQLException|22023
+int4-010	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+int4-011	*	*	String:65	!SQLFeatureNotSupportedException|0A000	InputStream:3635	InputStream:3635	Reader:65	!PSQLException|22023
+int8-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+int8-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+int8-003	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	!PSQLException|22023
+int8-004	*	*	String:9223372036854775807	!SQLFeatureNotSupportedException|0A000	InputStream:39323233333732303336383534373735383037	InputStream:39323233333732303336383534373735383037	Reader:9223372036854775807	!PSQLException|22023
+int8-005	*	*	String:-9223372036854775808	!SQLFeatureNotSupportedException|0A000	InputStream:2d39323233333732303336383534373735383038	InputStream:2d39323233333732303336383534373735383038	Reader:-9223372036854775808	!PSQLException|22023
+int8-006	*	*	String:2147483647	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363437	InputStream:32313437343833363437	Reader:2147483647	!PSQLException|22023
+int8-007	*	*	String:2147483648	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363438	InputStream:32313437343833363438	Reader:2147483648	!PSQLException|22023
+int8-008	*	*	String:-2147483649	!SQLFeatureNotSupportedException|0A000	InputStream:2d32313437343833363439	InputStream:2d32313437343833363439	Reader:-2147483649	!PSQLException|22023
+int8-009	*	*	String:9007199254740993	!SQLFeatureNotSupportedException|0A000	InputStream:39303037313939323534373430393933	InputStream:39303037313939323534373430393933	Reader:9007199254740993	!PSQLException|22023
+int8-010	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+oid-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+oid-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+oid-003	*	*	String:2147483647	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363437	InputStream:32313437343833363437	Reader:2147483647	!PSQLException|22023
+oid-004	*	*	String:2147483648	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363438	InputStream:32313437343833363438	Reader:2147483648	!PSQLException|22023
+oid-005	*	*	String:4294967295	!SQLFeatureNotSupportedException|0A000	InputStream:34323934393637323935	InputStream:34323934393637323935	Reader:4294967295	!PSQLException|22023
+float4-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+float4-002	*	*	String:-0	!SQLFeatureNotSupportedException|0A000	InputStream:2d30	InputStream:2d30	Reader:-0	!PSQLException|22023
+float4-003	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+float4-004	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	!PSQLException|22023
+float4-005	*	*	String:1.5	!SQLFeatureNotSupportedException|0A000	InputStream:312e35	InputStream:312e35	Reader:1.5	!PSQLException|22023
+float4-006	*	*	String:0.1	!SQLFeatureNotSupportedException|0A000	InputStream:302e31	InputStream:302e31	Reader:0.1	!PSQLException|22023
+float4-007	*	*	String:3.4028235e+38	!SQLFeatureNotSupportedException|0A000	InputStream:332e34303238323335652b3338	InputStream:332e34303238323335652b3338	Reader:3.4028235e+38	!PSQLException|22023
+float4-008	*	*	String:1e-45	!SQLFeatureNotSupportedException|0A000	InputStream:31652d3435	InputStream:31652d3435	Reader:1e-45	!PSQLException|22023
+float4-009	*	*	String:NaN	!SQLFeatureNotSupportedException|0A000	InputStream:4e614e	InputStream:4e614e	Reader:NaN	!PSQLException|22023
+float4-010	*	*	String:Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:496e66696e697479	InputStream:496e66696e697479	Reader:Infinity	!PSQLException|22023
+float4-011	*	*	String:-Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d496e66696e697479	InputStream:2d496e66696e697479	Reader:-Infinity	!PSQLException|22023
+float4-012	*	*	String:1.6777216e+07	!SQLFeatureNotSupportedException|0A000	InputStream:312e36373737323136652b3037	InputStream:312e36373737323136652b3037	Reader:1.6777216e+07	!PSQLException|22023
+float4-013	*	*	String:1e+10	!SQLFeatureNotSupportedException|0A000	InputStream:31652b3130	InputStream:31652b3130	Reader:1e+10	!PSQLException|22023
+float4-014	*	*	String:123456.79	!SQLFeatureNotSupportedException|0A000	InputStream:3132333435362e3739	InputStream:3132333435362e3739	Reader:123456.79	!PSQLException|22023
+float4-015	*	*	String:2.5	!SQLFeatureNotSupportedException|0A000	InputStream:322e35	InputStream:322e35	Reader:2.5	!PSQLException|22023
+float4-016	*	*	String:0.5	!SQLFeatureNotSupportedException|0A000	InputStream:302e35	InputStream:302e35	Reader:0.5	!PSQLException|22023
+float4-017	*	*	String:-2.5	!SQLFeatureNotSupportedException|0A000	InputStream:2d322e35	InputStream:2d322e35	Reader:-2.5	!PSQLException|22023
+float4-018	*	*	String:1e-05	!SQLFeatureNotSupportedException|0A000	InputStream:31652d3035	InputStream:31652d3035	Reader:1e-05	!PSQLException|22023
+float4-019	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+float4-020	*	*	String:3e+09	!SQLFeatureNotSupportedException|0A000	InputStream:33652b3039	InputStream:33652b3039	Reader:3e+09	!PSQLException|22023
+float8-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+float8-002	*	*	String:-0	!SQLFeatureNotSupportedException|0A000	InputStream:2d30	InputStream:2d30	Reader:-0	!PSQLException|22023
+float8-003	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+float8-004	*	*	String:-1.5	!SQLFeatureNotSupportedException|0A000	InputStream:2d312e35	InputStream:2d312e35	Reader:-1.5	!PSQLException|22023
+float8-005	*	*	String:0.1	!SQLFeatureNotSupportedException|0A000	InputStream:302e31	InputStream:302e31	Reader:0.1	!PSQLException|22023
+float8-006	*	*	String:1.7976931348623157e+308	!SQLFeatureNotSupportedException|0A000	InputStream:312e37393736393331333438363233313537652b333038	InputStream:312e37393736393331333438363233313537652b333038	Reader:1.7976931348623157e+308	!PSQLException|22023
+float8-007	*	*	String:5e-324	!SQLFeatureNotSupportedException|0A000	InputStream:35652d333234	InputStream:35652d333234	Reader:5e-324	!PSQLException|22023
+float8-008	*	*	String:NaN	!SQLFeatureNotSupportedException|0A000	InputStream:4e614e	InputStream:4e614e	Reader:NaN	!PSQLException|22023
+float8-009	*	*	String:Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:496e66696e697479	InputStream:496e66696e697479	Reader:Infinity	!PSQLException|22023
+float8-010	*	*	String:-Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d496e66696e697479	InputStream:2d496e66696e697479	Reader:-Infinity	!PSQLException|22023
+float8-011	*	*	String:1e+15	!SQLFeatureNotSupportedException|0A000	InputStream:31652b3135	InputStream:31652b3135	Reader:1e+15	!PSQLException|22023
+float8-012	*	*	String:1e+16	!SQLFeatureNotSupportedException|0A000	InputStream:31652b3136	InputStream:31652b3136	Reader:1e+16	!PSQLException|22023
+float8-013	*	*	String:1e+21	!SQLFeatureNotSupportedException|0A000	InputStream:31652b3231	InputStream:31652b3231	Reader:1e+21	!PSQLException|22023
+float8-014	*	*	String:123456789.12345679	!SQLFeatureNotSupportedException|0A000	InputStream:3132333435363738392e3132333435363739	InputStream:3132333435363738392e3132333435363739	Reader:123456789.12345679	!PSQLException|22023
+float8-015	*	*	String:1e-05	!SQLFeatureNotSupportedException|0A000	InputStream:31652d3035	InputStream:31652d3035	Reader:1e-05	!PSQLException|22023
+float8-016	*	*	String:2.5	!SQLFeatureNotSupportedException|0A000	InputStream:322e35	InputStream:322e35	Reader:2.5	!PSQLException|22023
+float8-017	*	*	String:0.5	!SQLFeatureNotSupportedException|0A000	InputStream:302e35	InputStream:302e35	Reader:0.5	!PSQLException|22023
+float8-018	*	*	String:9.007199254740992e+15	!SQLFeatureNotSupportedException|0A000	InputStream:392e303037313939323534373430393932652b3135	InputStream:392e303037313939323534373430393932652b3135	Reader:9.007199254740992e+15	!PSQLException|22023
+float8-019	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+float8-020	*	*	String:3000000000	!SQLFeatureNotSupportedException|0A000	InputStream:33303030303030303030	InputStream:33303030303030303030	Reader:3000000000	!PSQLException|22023
+float8-021	*	*	String:1e+19	!SQLFeatureNotSupportedException|0A000	InputStream:31652b3139	InputStream:31652b3139	Reader:1e+19	!PSQLException|22023
+float8-022	*	*	String:-0.9	!SQLFeatureNotSupportedException|0A000	InputStream:2d302e39	InputStream:2d302e39	Reader:-0.9	!PSQLException|22023
+float8-023	*	*	String:0.9	!SQLFeatureNotSupportedException|0A000	InputStream:302e39	InputStream:302e39	Reader:0.9	!PSQLException|22023
+numeric-001	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+numeric-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+numeric-003	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	!PSQLException|22023
+numeric-004	*	*	String:0.0	!SQLFeatureNotSupportedException|0A000	InputStream:302e30	InputStream:302e30	Reader:0.0	!PSQLException|22023
+numeric-005	*	*	String:1.50	!SQLFeatureNotSupportedException|0A000	InputStream:312e3530	InputStream:312e3530	Reader:1.50	!PSQLException|22023
+numeric-006	*	*	String:123456789012345678901234567890.123456789	!SQLFeatureNotSupportedException|0A000	InputStream:3132333435363738393031323334353637383930313233343536373839302e313233343536373839	InputStream:3132333435363738393031323334353637383930313233343536373839302e313233343536373839	Reader:123456789012345678901234567890.123456789	!PSQLException|22023
+numeric-007	*	*	String:-0.000001	!SQLFeatureNotSupportedException|0A000	InputStream:2d302e303030303031	InputStream:2d302e303030303031	Reader:-0.000001	!PSQLException|22023
+numeric-008	*	*	String:NaN	!SQLFeatureNotSupportedException|0A000	InputStream:4e614e	InputStream:4e614e	Reader:NaN	!PSQLException|22023
+numeric-009	*	*	String:Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:496e66696e697479	InputStream:496e66696e697479	Reader:Infinity	!PSQLException|22023
+numeric-010	*	*	String:-Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d496e66696e697479	InputStream:2d496e66696e697479	Reader:-Infinity	!PSQLException|22023
+numeric-011	*	*	String:10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	!SQLFeatureNotSupportedException|0A000	InputStream:3130303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030	InputStream:3130303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030	Reader:10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	!PSQLException|22023
+numeric-012	*	*	String:0.1	!SQLFeatureNotSupportedException|0A000	InputStream:302e31	InputStream:302e31	Reader:0.1	!PSQLException|22023
+numeric-013	*	*	String:2.5	!SQLFeatureNotSupportedException|0A000	InputStream:322e35	InputStream:322e35	Reader:2.5	!PSQLException|22023
+numeric-014	*	*	String:1.5	!SQLFeatureNotSupportedException|0A000	InputStream:312e35	InputStream:312e35	Reader:1.5	!PSQLException|22023
+numeric-015	*	*	String:0.5	!SQLFeatureNotSupportedException|0A000	InputStream:302e35	InputStream:302e35	Reader:0.5	!PSQLException|22023
+numeric-016	*	*	String:-2.5	!SQLFeatureNotSupportedException|0A000	InputStream:2d322e35	InputStream:2d322e35	Reader:-2.5	!PSQLException|22023
+numeric-017	*	*	String:127	!SQLFeatureNotSupportedException|0A000	InputStream:313237	InputStream:313237	Reader:127	!PSQLException|22023
+numeric-018	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	!PSQLException|22023
+numeric-019	*	*	String:32768	!SQLFeatureNotSupportedException|0A000	InputStream:3332373638	InputStream:3332373638	Reader:32768	!PSQLException|22023
+numeric-020	*	*	String:2147483648	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363438	InputStream:32313437343833363438	Reader:2147483648	!PSQLException|22023
+numeric-021	*	*	String:9223372036854775807	!SQLFeatureNotSupportedException|0A000	InputStream:39323233333732303336383534373735383037	InputStream:39323233333732303336383534373735383037	Reader:9223372036854775807	!PSQLException|22023
+numeric-022	*	*	String:9223372036854775808	!SQLFeatureNotSupportedException|0A000	InputStream:39323233333732303336383534373735383038	InputStream:39323233333732303336383534373735383038	Reader:9223372036854775808	!PSQLException|22023
+numeric-023	*	*	String:0.00000000000000000001	!SQLFeatureNotSupportedException|0A000	InputStream:302e3030303030303030303030303030303030303031	InputStream:302e3030303030303030303030303030303030303031	Reader:0.00000000000000000001	!PSQLException|22023
+numeric-024	*	*	String:0.9	!SQLFeatureNotSupportedException|0A000	InputStream:302e39	InputStream:302e39	Reader:0.9	!PSQLException|22023
+numeric-025	*	*	String:-0.9	!SQLFeatureNotSupportedException|0A000	InputStream:2d302e39	InputStream:2d302e39	Reader:-0.9	!PSQLException|22023
+numeric-026	*	*	String:1.0	!SQLFeatureNotSupportedException|0A000	InputStream:312e30	InputStream:312e30	Reader:1.0	!PSQLException|22023
+numeric-027	*	*	String:0.00	!SQLFeatureNotSupportedException|0A000	InputStream:302e3030	InputStream:302e3030	Reader:0.00	!PSQLException|22023
+numeric-028	*	*	String:100	!SQLFeatureNotSupportedException|0A000	InputStream:313030	InputStream:313030	Reader:100	!PSQLException|22023
+numeric-029	*	*	String:100000	!SQLFeatureNotSupportedException|0A000	InputStream:313030303030	InputStream:313030303030	Reader:100000	!PSQLException|22023
+numeric-030	*	*	String:3.99	!SQLFeatureNotSupportedException|0A000	InputStream:332e3939	InputStream:332e3939	Reader:3.99	!PSQLException|22023
+numeric-031	*	*	String:12345.60	!SQLFeatureNotSupportedException|0A000	InputStream:31323334352e3630	InputStream:31323334352e3630	Reader:12345.60	!PSQLException|22023
+numeric-032	*	*	String:0.00	!SQLFeatureNotSupportedException|0A000	InputStream:302e3030	InputStream:302e3030	Reader:0.00	!PSQLException|22023
+numeric-033	*	*	String:99999999.99	!SQLFeatureNotSupportedException|0A000	InputStream:39393939393939392e3939	InputStream:39393939393939392e3939	Reader:99999999.99	!PSQLException|22023
+numeric-034	*	*	String:-0.01	!SQLFeatureNotSupportedException|0A000	InputStream:2d302e3031	InputStream:2d302e3031	Reader:-0.01	!PSQLException|22023
+numeric-035	*	*	String:1.00	!SQLFeatureNotSupportedException|0A000	InputStream:312e3030	InputStream:312e3030	Reader:1.00	!PSQLException|22023
+numeric-036	*	*	String:42	!SQLFeatureNotSupportedException|0A000	InputStream:3432	InputStream:3432	Reader:42	!PSQLException|22023
+money-001	*	*	String:$0.00	!SQLFeatureNotSupportedException|0A000	InputStream:24302e3030	InputStream:24302e3030	Reader:$0.00	!PSQLException|22023
+money-002	*	*	String:$12.34	!SQLFeatureNotSupportedException|0A000	InputStream:2431322e3334	InputStream:2431322e3334	Reader:$12.34	!PSQLException|22023
+money-003	*	*	String:-$12.34	!SQLFeatureNotSupportedException|0A000	InputStream:2d2431322e3334	InputStream:2d2431322e3334	Reader:-$12.34	!PSQLException|22023
+money-004	*	*	String:$1,234,567.89	!SQLFeatureNotSupportedException|0A000	InputStream:24312c3233342c3536372e3839	InputStream:24312c3233342c3536372e3839	Reader:$1,234,567.89	!PSQLException|22023
+money-005	*	*	String:$92,233,720,368,547,758.07	!SQLFeatureNotSupportedException|0A000	InputStream:2439322c3233332c3732302c3336382c3534372c3735382e3037	InputStream:2439322c3233332c3732302c3336382c3534372c3735382e3037	Reader:$92,233,720,368,547,758.07	!PSQLException|22023
+money-006	*	*	String:-$92,233,720,368,547,758.08	!SQLFeatureNotSupportedException|0A000	InputStream:2d2439322c3233332c3732302c3336382c3534372c3735382e3038	InputStream:2d2439322c3233332c3732302c3336382c3534372c3735382e3038	Reader:-$92,233,720,368,547,758.08	!PSQLException|22023
+money-007	*	*	String:$1.00	!SQLFeatureNotSupportedException|0A000	InputStream:24312e3030	InputStream:24312e3030	Reader:$1.00	!PSQLException|22023
+money-008	*	*	String:$0.50	!SQLFeatureNotSupportedException|0A000	InputStream:24302e3530	InputStream:24302e3530	Reader:$0.50	!PSQLException|22023
+money-009	*	*	String:$1,000.00	!SQLFeatureNotSupportedException|0A000	InputStream:24312c3030302e3030	InputStream:24312c3030302e3030	Reader:$1,000.00	!PSQLException|22023
+text-001	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	String:
+text-002	*	*	String:a	!SQLFeatureNotSupportedException|0A000	InputStream:61	InputStream:61	Reader:a	String:a
+text-003	*	*	String:hello world	!SQLFeatureNotSupportedException|0A000	InputStream:68656c6c6f20776f726c64	InputStream:68656c6c6f20776f726c64	Reader:hello world	String:hello world
+text-004	*	*	String: padded 	!SQLFeatureNotSupportedException|0A000	InputStream:2070616464656420	InputStream:2070616464656420	Reader: padded 	String: padded 
+text-005	*	*	String:😀	!SQLFeatureNotSupportedException|0A000	InputStream:3f	InputStream:f09f9880	Reader:😀	String:😀
+text-006	*	*	String:ąćę€	!SQLFeatureNotSupportedException|0A000	InputStream:3f3f3f3f	InputStream:c485c487c499e282ac	Reader:ąćę€	String:ąćę€
+text-007	*	*	String:true	!SQLFeatureNotSupportedException|0A000	InputStream:74727565	InputStream:74727565	Reader:true	String:true
+text-008	*	*	String:false	!SQLFeatureNotSupportedException|0A000	InputStream:66616c7365	InputStream:66616c7365	Reader:false	String:false
+text-009	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	String:t
+text-010	*	*	String:f	!SQLFeatureNotSupportedException|0A000	InputStream:66	InputStream:66	Reader:f	String:f
+text-011	*	*	String:yes	!SQLFeatureNotSupportedException|0A000	InputStream:796573	InputStream:796573	Reader:yes	String:yes
+text-012	*	*	String:no	!SQLFeatureNotSupportedException|0A000	InputStream:6e6f	InputStream:6e6f	Reader:no	String:no
+text-013	*	*	String:on	!SQLFeatureNotSupportedException|0A000	InputStream:6f6e	InputStream:6f6e	Reader:on	String:on
+text-014	*	*	String:off	!SQLFeatureNotSupportedException|0A000	InputStream:6f6666	InputStream:6f6666	Reader:off	String:off
+text-015	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+text-016	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	String:0
+text-017	*	*	String:y	!SQLFeatureNotSupportedException|0A000	InputStream:79	InputStream:79	Reader:y	String:y
+text-018	*	*	String:n	!SQLFeatureNotSupportedException|0A000	InputStream:6e	InputStream:6e	Reader:n	String:n
+text-019	*	*	String:TRUE	!SQLFeatureNotSupportedException|0A000	InputStream:54525545	InputStream:54525545	Reader:TRUE	String:TRUE
+text-020	*	*	String: t 	!SQLFeatureNotSupportedException|0A000	InputStream:207420	InputStream:207420	Reader: t 	String: t 
+text-021	*	*	String:123	!SQLFeatureNotSupportedException|0A000	InputStream:313233	InputStream:313233	Reader:123	String:123
+text-022	*	*	String: 42 	!SQLFeatureNotSupportedException|0A000	InputStream:20343220	InputStream:20343220	Reader: 42 	String: 42 
+text-023	*	*	String:1.5	!SQLFeatureNotSupportedException|0A000	InputStream:312e35	InputStream:312e35	Reader:1.5	String:1.5
+text-024	*	*	String:-1e3	!SQLFeatureNotSupportedException|0A000	InputStream:2d316533	InputStream:2d316533	Reader:-1e3	String:-1e3
+text-025	*	*	String:NaN	!SQLFeatureNotSupportedException|0A000	InputStream:4e614e	InputStream:4e614e	Reader:NaN	String:NaN
+text-026	*	*	String:Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:496e66696e697479	InputStream:496e66696e697479	Reader:Infinity	String:Infinity
+text-027	*	*	String:-Infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d496e66696e697479	InputStream:2d496e66696e697479	Reader:-Infinity	String:-Infinity
+text-028	*	*	String:9223372036854775807	!SQLFeatureNotSupportedException|0A000	InputStream:39323233333732303336383534373735383037	InputStream:39323233333732303336383534373735383037	Reader:9223372036854775807	String:9223372036854775807
+text-029	*	*	String:9223372036854775808	!SQLFeatureNotSupportedException|0A000	InputStream:39323233333732303336383534373735383038	InputStream:39323233333732303336383534373735383038	Reader:9223372036854775808	String:9223372036854775808
+text-030	*	*	String:2147483648	!SQLFeatureNotSupportedException|0A000	InputStream:32313437343833363438	InputStream:32313437343833363438	Reader:2147483648	String:2147483648
+text-031	*	*	String:32768	!SQLFeatureNotSupportedException|0A000	InputStream:3332373638	InputStream:3332373638	Reader:32768	String:32768
+text-032	*	*	String:128	!SQLFeatureNotSupportedException|0A000	InputStream:313238	InputStream:313238	Reader:128	String:128
+text-033	*	*	String:127	!SQLFeatureNotSupportedException|0A000	InputStream:313237	InputStream:313237	Reader:127	String:127
+text-034	*	*	String:255	!SQLFeatureNotSupportedException|0A000	InputStream:323535	InputStream:323535	Reader:255	String:255
+text-035	*	*	String:-129	!SQLFeatureNotSupportedException|0A000	InputStream:2d313239	InputStream:2d313239	Reader:-129	String:-129
+text-036	*	*	String:-1	!SQLFeatureNotSupportedException|0A000	InputStream:2d31	InputStream:2d31	Reader:-1	String:-1
+text-037	*	*	String:2	!SQLFeatureNotSupportedException|0A000	InputStream:32	InputStream:32	Reader:2	String:2
+text-038	*	*	String:1.0	!SQLFeatureNotSupportedException|0A000	InputStream:312e30	InputStream:312e30	Reader:1.0	String:1.0
+text-039	*	*	String:0.0	!SQLFeatureNotSupportedException|0A000	InputStream:302e30	InputStream:302e30	Reader:0.0	String:0.0
+text-040	*	*	String:1e0	!SQLFeatureNotSupportedException|0A000	InputStream:316530	InputStream:316530	Reader:1e0	String:1e0
+text-041	*	*	String:3.99	!SQLFeatureNotSupportedException|0A000	InputStream:332e3939	InputStream:332e3939	Reader:3.99	String:3.99
+text-042	*	*	String:-0.5	!SQLFeatureNotSupportedException|0A000	InputStream:2d302e35	InputStream:2d302e35	Reader:-0.5	String:-0.5
+text-043	*	*	String:1E400	!SQLFeatureNotSupportedException|0A000	InputStream:3145343030	InputStream:3145343030	Reader:1E400	String:1E400
+text-044	*	*	String:+5	!SQLFeatureNotSupportedException|0A000	InputStream:2b35	InputStream:2b35	Reader:+5	String:+5
+text-045	*	*	String:1_000	!SQLFeatureNotSupportedException|0A000	InputStream:315f303030	InputStream:315f303030	Reader:1_000	String:1_000
+text-046	*	*	String:0x10	!SQLFeatureNotSupportedException|0A000	InputStream:30783130	InputStream:30783130	Reader:0x10	String:0x10
+text-047	*	*	String:1,000	!SQLFeatureNotSupportedException|0A000	InputStream:312c303030	InputStream:312c303030	Reader:1,000	String:1,000
+text-048	*	*	String:$1.00	!SQLFeatureNotSupportedException|0A000	InputStream:24312e3030	InputStream:24312e3030	Reader:$1.00	String:$1.00
+text-049	*	*	String:($12.34)	!SQLFeatureNotSupportedException|0A000	InputStream:282431322e333429	InputStream:282431322e333429	Reader:($12.34)	String:($12.34)
+text-050	*	*	String:-$1,234.50	!SQLFeatureNotSupportedException|0A000	InputStream:2d24312c3233342e3530	InputStream:2d24312c3233342e3530	Reader:-$1,234.50	String:-$1,234.50
+text-051	*	*	String:2020-01-02	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d3032	InputStream:323032302d30312d3032	Reader:2020-01-02	String:2020-01-02
+text-052	*	*	String:10:11:12	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a3132	InputStream:31303a31313a3132	Reader:10:11:12	String:10:11:12
+text-053	*	*	String:2020-01-02 10:11:12.123456	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e313233343536	InputStream:323032302d30312d30322031303a31313a31322e313233343536	Reader:2020-01-02 10:11:12.123456	String:2020-01-02 10:11:12.123456
+text-054	*	*	String:2020-01-02 10:11:12+02	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322b3032	InputStream:323032302d30312d30322031303a31313a31322b3032	Reader:2020-01-02 10:11:12+02	String:2020-01-02 10:11:12+02
+text-055	*	*	String:2020-01-02T10:11:12	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30325431303a31313a3132	InputStream:323032302d30312d30325431303a31313a3132	Reader:2020-01-02T10:11:12	String:2020-01-02T10:11:12
+text-056	*	*	String:2020-01-02 10:11:12.5+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e352b30353a3330	InputStream:323032302d30312d30322031303a31313a31322e352b30353a3330	Reader:2020-01-02 10:11:12.5+05:30	String:2020-01-02 10:11:12.5+05:30
+text-057	*	*	String:0044-03-15 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d3135204243	InputStream:303034342d30332d3135204243	Reader:0044-03-15 BC	String:0044-03-15 BC
+text-058	*	*	String:infinity	!SQLFeatureNotSupportedException|0A000	InputStream:696e66696e697479	InputStream:696e66696e697479	Reader:infinity	String:infinity
+text-059	*	*	String:-infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d696e66696e697479	InputStream:2d696e66696e697479	Reader:-infinity	String:-infinity
+text-060	*	*	String:epoch	!SQLFeatureNotSupportedException|0A000	InputStream:65706f6368	InputStream:65706f6368	Reader:epoch	String:epoch
+text-061	*	*	String:24:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:32343a30303a3030	InputStream:32343a30303a3030	Reader:24:00:00	String:24:00:00
+text-062	*	*	String:12:00:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:31323a30303a30302b30353a3330	InputStream:31323a30303a30302b30353a3330	Reader:12:00:00+05:30	String:12:00:00+05:30
+text-063	*	*	String:2020-01-02 10:11:12 BC	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a3132204243	InputStream:323032302d30312d30322031303a31313a3132204243	Reader:2020-01-02 10:11:12 BC	String:2020-01-02 10:11:12 BC
+text-064	*	*	String:10:11:12.123456789	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e313233343536373839	InputStream:31303a31313a31322e313233343536373839	Reader:10:11:12.123456789	String:10:11:12.123456789
+text-065	*	*	String:{1,2}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c327d	InputStream:7b312c327d	Reader:{1,2}	String:{1,2}
+text-066	*	*	String:abc\ndef\ttab\\back	!SQLFeatureNotSupportedException|0A000	InputStream:6162630a646566097461625c6261636b	InputStream:6162630a646566097461625c6261636b	Reader:abc\ndef\ttab\\back	String:abc\ndef\ttab\\back
+text-067	*	*	String:http://example.com/	!SQLFeatureNotSupportedException|0A000	InputStream:687474703a2f2f6578616d706c652e636f6d2f	InputStream:687474703a2f2f6578616d706c652e636f6d2f	Reader:http://example.com/	String:http://example.com/
+text-068	*	*	String:\\x41	!SQLFeatureNotSupportedException|0A000	InputStream:5c783431	InputStream:5c783431	Reader:\\x41	String:\\x41
+text-069	*	*	String:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	!SQLFeatureNotSupportedException|0A000	InputStream:61306565626339392d396330622d346566382d626236642d366262396264333830613131	InputStream:61306565626339392d396330622d346566382d626236642d366262396264333830613131	Reader:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	String:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+text-070	*	*	String:A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11	!SQLFeatureNotSupportedException|0A000	InputStream:41304545424339392d394330422d344546382d424236442d364242394244333830413131	InputStream:41304545424339392d394330422d344546382d424236442d364242394244333830413131	Reader:A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11	String:A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11
+text-071	*	*	String:<a>1</a>	!SQLFeatureNotSupportedException|0A000	InputStream:3c613e313c2f613e	InputStream:3c613e313c2f613e	Reader:<a>1</a>	String:<a>1</a>
+text-072	*	*	String:192.168.1.1	!SQLFeatureNotSupportedException|0A000	InputStream:3139322e3136382e312e31	InputStream:3139322e3136382e312e31	Reader:192.168.1.1	String:192.168.1.1
+text-073	*	*	String:(1,2)	!SQLFeatureNotSupportedException|0A000	InputStream:28312c3229	InputStream:28312c3229	Reader:(1,2)	String:(1,2)
+text-074	*	*	String:1 day	!SQLFeatureNotSupportedException|0A000	InputStream:3120646179	InputStream:3120646179	Reader:1 day	String:1 day
+text-075	*	*	String:null	!SQLFeatureNotSupportedException|0A000	InputStream:6e756c6c	InputStream:6e756c6c	Reader:null	String:null
+text-076	*	*	String:abc	!SQLFeatureNotSupportedException|0A000	InputStream:616263	InputStream:616263	Reader:abc	String:abc
+text-077	*	*	String:12abc	!SQLFeatureNotSupportedException|0A000	InputStream:3132616263	InputStream:3132616263	Reader:12abc	String:12abc
+text-078	*	*	String:1.5e	!SQLFeatureNotSupportedException|0A000	InputStream:312e3565	InputStream:312e3565	Reader:1.5e	String:1.5e
+text-079	*	*	String:.5	!SQLFeatureNotSupportedException|0A000	InputStream:2e35	InputStream:2e35	Reader:.5	String:.5
+text-080	*	*	String:5.	!SQLFeatureNotSupportedException|0A000	InputStream:352e	InputStream:352e	Reader:5.	String:5.
+text-081	*	*	String:0.1	!SQLFeatureNotSupportedException|0A000	InputStream:302e31	InputStream:302e31	Reader:0.1	String:0.1
+text-082	*	*	String:1e2	!SQLFeatureNotSupportedException|0A000	InputStream:316532	InputStream:316532	Reader:1e2	String:1e2
+text-083	*	*	String:00012	!SQLFeatureNotSupportedException|0A000	InputStream:3030303132	InputStream:3030303132	Reader:00012	String:00012
+text-084	*	*	String:-0	!SQLFeatureNotSupportedException|0A000	InputStream:2d30	InputStream:2d30	Reader:-0	String:-0
+text-085	*	*	String:１２	!SQLFeatureNotSupportedException|0A000	InputStream:3f3f	InputStream:efbc91efbc92	Reader:１２	String:１２
+text-086	*	*	String:2020-13-45	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d31332d3435	InputStream:323032302d31332d3435	Reader:2020-13-45	String:2020-13-45
+text-087	*	*	String:25:61:61	!SQLFeatureNotSupportedException|0A000	InputStream:32353a36313a3631	InputStream:32353a36313a3631	Reader:25:61:61	String:25:61:61
+text-088	*	*	String:1 2	!SQLFeatureNotSupportedException|0A000	InputStream:312032	InputStream:312032	Reader:1 2	String:1 2
+text-089	*	*	String:--1	!SQLFeatureNotSupportedException|0A000	InputStream:2d2d31	InputStream:2d2d31	Reader:--1	String:--1
+text-090	*	*	String:9223372036854775807.5	!SQLFeatureNotSupportedException|0A000	InputStream:393232333337323033363835343737353830372e35	InputStream:393232333337323033363835343737353830372e35	Reader:9223372036854775807.5	String:9223372036854775807.5
+text-091	*	*	String:4.9e-324	!SQLFeatureNotSupportedException|0A000	InputStream:342e39652d333234	InputStream:342e39652d333234	Reader:4.9e-324	String:4.9e-324
+text-092	*	*	String:1e-400	!SQLFeatureNotSupportedException|0A000	InputStream:31652d343030	InputStream:31652d343030	Reader:1e-400	String:1e-400
+text-093	*	*	String:0e0	!SQLFeatureNotSupportedException|0A000	InputStream:306530	InputStream:306530	Reader:0e0	String:0e0
+text-094	*	*	String:tRuE	!SQLFeatureNotSupportedException|0A000	InputStream:74527545	InputStream:74527545	Reader:tRuE	String:tRuE
+text-095	*	*	String:Y	!SQLFeatureNotSupportedException|0A000	InputStream:59	InputStream:59	Reader:Y	String:Y
+text-096	*	*	String:N	!SQLFeatureNotSupportedException|0A000	InputStream:4e	InputStream:4e	Reader:N	String:N
+text-097	*	*	String:ON	!SQLFeatureNotSupportedException|0A000	InputStream:4f4e	InputStream:4f4e	Reader:ON	String:ON
+text-098	*	*	String:OFF	!SQLFeatureNotSupportedException|0A000	InputStream:4f4646	InputStream:4f4646	Reader:OFF	String:OFF
+text-099	*	*	String:No	!SQLFeatureNotSupportedException|0A000	InputStream:4e6f	InputStream:4e6f	Reader:No	String:No
+text-100	*	*	String:oN	!SQLFeatureNotSupportedException|0A000	InputStream:6f4e	InputStream:6f4e	Reader:oN	String:oN
+text-101	*	*	String:2020-01-02 10:11:12.1234567	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e31323334353637	InputStream:323032302d30312d30322031303a31313a31322e31323334353637	Reader:2020-01-02 10:11:12.1234567	String:2020-01-02 10:11:12.1234567
+text-102	*	*	String:99999-01-01	!SQLFeatureNotSupportedException|0A000	InputStream:39393939392d30312d3031	InputStream:39393939392d30312d3031	Reader:99999-01-01	String:99999-01-01
+varchar-001	*	*	String:abc	!SQLFeatureNotSupportedException|0A000	InputStream:616263	InputStream:616263	Reader:abc	String:abc
+varchar-002	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	String:
+varchar-003	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+varchar-004	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	String:t
+varchar-005	*	*	String:2020-01-02	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d3032	InputStream:323032302d30312d3032	Reader:2020-01-02	String:2020-01-02
+varchar-006	*	*	String:12.5	!SQLFeatureNotSupportedException|0A000	InputStream:31322e35	InputStream:31322e35	Reader:12.5	String:12.5
+varchar-007	*	*	String:abc	!SQLFeatureNotSupportedException|0A000	InputStream:616263	InputStream:616263	Reader:abc	String:abc
+varchar-008	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+bpchar-001	*	*	String:ab   	!SQLFeatureNotSupportedException|0A000	InputStream:6162202020	InputStream:6162202020	Reader:ab   	String:ab   
+bpchar-002	*	*	String:1    	!SQLFeatureNotSupportedException|0A000	InputStream:3120202020	InputStream:3120202020	Reader:1    	String:1    
+bpchar-003	*	*	String:t    	!SQLFeatureNotSupportedException|0A000	InputStream:7420202020	InputStream:7420202020	Reader:t    	String:t    
+bpchar-004	*	*	String:     	!SQLFeatureNotSupportedException|0A000	InputStream:2020202020	InputStream:2020202020	Reader:     	String:     
+bpchar-005	*	*	String:12.5 	!SQLFeatureNotSupportedException|0A000	InputStream:31322e3520	InputStream:31322e3520	Reader:12.5 	String:12.5 
+bpchar-006	*	*	String:x	!SQLFeatureNotSupportedException|0A000	InputStream:78	InputStream:78	Reader:x	String:x
+bpchar-007	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+bpchar-008	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	String:t
+bpchar-009	*	*	String:f	!SQLFeatureNotSupportedException|0A000	InputStream:66	InputStream:66	Reader:f	String:f
+bpchar-010	*	*	String:y	!SQLFeatureNotSupportedException|0A000	InputStream:79	InputStream:79	Reader:y	String:y
+bpchar-011	*	*	String:ab  	!SQLFeatureNotSupportedException|0A000	InputStream:61622020	InputStream:61622020	Reader:ab  	String:ab  
+bpchar-012	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+name-001	*	*	String:pg_class	!SQLFeatureNotSupportedException|0A000	InputStream:70675f636c617373	InputStream:70675f636c617373	Reader:pg_class	String:pg_class
+name-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+name-003	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	String:t
+char-001	*	*	String:a	!SQLFeatureNotSupportedException|0A000	InputStream:61	InputStream:61	Reader:a	String:a
+char-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	String:1
+char-003	*	*	String:t	!SQLFeatureNotSupportedException|0A000	InputStream:74	InputStream:74	Reader:t	String:t
+char-004	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	String:0
+char-005	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	String:
+bytea-001	*	*	String:\\x	!SQLFeatureNotSupportedException|0A000	InputStream:5c78	InputStream:5c78	Reader:\\x	!PSQLException|22023
+bytea-002	*	*	String:\\x00	!SQLFeatureNotSupportedException|0A000	InputStream:5c783030	InputStream:5c783030	Reader:\\x00	!PSQLException|22023
+bytea-003	*	*	String:\\x616263	!SQLFeatureNotSupportedException|0A000	InputStream:5c78363136323633	InputStream:5c78363136323633	Reader:\\x616263	!PSQLException|22023
+bytea-004	*	*	String:\\xdeadbeef	!SQLFeatureNotSupportedException|0A000	InputStream:5c786465616462656566	InputStream:5c786465616462656566	Reader:\\xdeadbeef	!PSQLException|22023
+bytea-005	*	*	String:\\x31	!SQLFeatureNotSupportedException|0A000	InputStream:5c783331	InputStream:5c783331	Reader:\\x31	!PSQLException|22023
+bytea-006	*	*	String:\\x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff	!SQLFeatureNotSupportedException|0A000	InputStream:5c783030303130323033303430353036303730383039306130623063306430653066313031313132313331343135313631373138313931613162316331643165316632303231323232333234323532363237323832393261326232633264326532663330333133323333333433353336333733383339336133623363336433653366343034313432343334343435343634373438343934613462346334643465346635303531353235333534353535363537353835393561356235633564356535663630363136323633363436353636363736383639366136623663366436653666373037313732373337343735373637373738373937613762376337643765376638303831383238333834383538363837383838393861386238633864386538663930393139323933393439353936393739383939396139623963396439653966613061316132613361346135613661376138613961616162616361646165616662306231623262336234623562366237623862396261626262636264626562666330633163326333633463356336633763386339636163626363636463656366643064316432643364346435643664376438643964616462646364646465646665306531653265336534653565366537653865396561656265636564656565666630663166326633663466356636663766386639666166626663666466656666	InputStream:5c783030303130323033303430353036303730383039306130623063306430653066313031313132313331343135313631373138313931613162316331643165316632303231323232333234323532363237323832393261326232633264326532663330333133323333333433353336333733383339336133623363336433653366343034313432343334343435343634373438343934613462346334643465346635303531353235333534353535363537353835393561356235633564356535663630363136323633363436353636363736383639366136623663366436653666373037313732373337343735373637373738373937613762376337643765376638303831383238333834383538363837383838393861386238633864386538663930393139323933393439353936393739383939396139623963396439653966613061316132613361346135613661376138613961616162616361646165616662306231623262336234623562366237623862396261626262636264626562666330633163326333633463356336633763386339636163626363636463656366643064316432643364346435643664376438643964616462646364646465646665306531653265336534653565366537653865396561656265636564656565666630663166326633663466356636663766386639666166626663666466656666	Reader:\\x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff	!PSQLException|22023
+bytea-007	*	*	String:\\x74	!SQLFeatureNotSupportedException|0A000	InputStream:5c783734	InputStream:5c783734	Reader:\\x74	!PSQLException|22023
+bytea-008	*	*	String:\\x5c78	!SQLFeatureNotSupportedException|0A000	InputStream:5c7835633738	InputStream:5c7835633738	Reader:\\x5c78	!PSQLException|22023
+bytea-009	*	*	String:\\xff	!SQLFeatureNotSupportedException|0A000	InputStream:5c786666	InputStream:5c786666	Reader:\\xff	!PSQLException|22023
+date-001	*	*	String:2020-01-02	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d3032	InputStream:323032302d30312d3032	Reader:2020-01-02	!PSQLException|22023
+date-002	*	*	String:1970-01-01	!SQLFeatureNotSupportedException|0A000	InputStream:313937302d30312d3031	InputStream:313937302d30312d3031	Reader:1970-01-01	!PSQLException|22023
+date-003	*	*	String:1969-12-31	!SQLFeatureNotSupportedException|0A000	InputStream:313936392d31322d3331	InputStream:313936392d31322d3331	Reader:1969-12-31	!PSQLException|22023
+date-004	*	*	String:0001-01-01	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d30312d3031	InputStream:303030312d30312d3031	Reader:0001-01-01	!PSQLException|22023
+date-005	*	*	String:0044-03-15 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d3135204243	InputStream:303034342d30332d3135204243	Reader:0044-03-15 BC	!PSQLException|22023
+date-006	*	*	String:0001-12-31 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d31322d3331204243	InputStream:303030312d31322d3331204243	Reader:0001-12-31 BC	!PSQLException|22023
+date-007	*	*	String:4713-01-01 BC	!SQLFeatureNotSupportedException|0A000	InputStream:343731332d30312d3031204243	InputStream:343731332d30312d3031204243	Reader:4713-01-01 BC	!PSQLException|22023
+date-008	*	*	String:5874897-12-31	!SQLFeatureNotSupportedException|0A000	InputStream:353837343839372d31322d3331	InputStream:353837343839372d31322d3331	Reader:5874897-12-31	!PSQLException|22023
+date-009	*	*	String:infinity	!SQLFeatureNotSupportedException|0A000	InputStream:696e66696e697479	InputStream:696e66696e697479	Reader:infinity	!PSQLException|22023
+date-010	*	*	String:-infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d696e66696e697479	InputStream:2d696e66696e697479	Reader:-infinity	!PSQLException|22023
+date-011	*	*	String:1582-10-04	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d3034	InputStream:313538322d31302d3034	Reader:1582-10-04	!PSQLException|22023
+date-012	*	*	String:1582-10-10	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d3130	InputStream:313538322d31302d3130	Reader:1582-10-10	!PSQLException|22023
+date-013	*	*	String:1582-10-15	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d3135	InputStream:313538322d31302d3135	Reader:1582-10-15	!PSQLException|22023
+date-014	*	*	String:2021-03-28	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d3238	InputStream:323032312d30332d3238	Reader:2021-03-28	!PSQLException|22023
+date-015	*	*	String:2021-10-31	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31302d3331	InputStream:323032312d31302d3331	Reader:2021-10-31	!PSQLException|22023
+date-016	*	*	String:1900-01-01	!SQLFeatureNotSupportedException|0A000	InputStream:313930302d30312d3031	InputStream:313930302d30312d3031	Reader:1900-01-01	!PSQLException|22023
+date-017	*	*	String:9999-12-31	!SQLFeatureNotSupportedException|0A000	InputStream:393939392d31322d3331	InputStream:393939392d31322d3331	Reader:9999-12-31	!PSQLException|22023
+date-018	*	*	String:10000-01-01	!SQLFeatureNotSupportedException|0A000	InputStream:31303030302d30312d3031	InputStream:31303030302d30312d3031	Reader:10000-01-01	!PSQLException|22023
+date-019	*	*	String:2000-02-29	!SQLFeatureNotSupportedException|0A000	InputStream:323030302d30322d3239	InputStream:323030302d30322d3239	Reader:2000-02-29	!PSQLException|22023
+date-020	*	*	String:1500-02-28	!SQLFeatureNotSupportedException|0A000	InputStream:313530302d30322d3238	InputStream:313530302d30322d3238	Reader:1500-02-28	!PSQLException|22023
+date-021	*	*	String:0100-03-01	!SQLFeatureNotSupportedException|0A000	InputStream:303130302d30332d3031	InputStream:303130302d30332d3031	Reader:0100-03-01	!PSQLException|22023
+date-022	*	*	String:1883-11-18	!SQLFeatureNotSupportedException|0A000	InputStream:313838332d31312d3138	InputStream:313838332d31312d3138	Reader:1883-11-18	!PSQLException|22023
+date-023	*	*	String:1915-08-04	!SQLFeatureNotSupportedException|0A000	InputStream:313931352d30382d3034	InputStream:313931352d30382d3034	Reader:1915-08-04	!PSQLException|22023
+time-001	*	*	String:00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a3030	InputStream:30303a30303a3030	Reader:00:00:00	!PSQLException|22023
+time-002	*	*	String:12:34:56	!SQLFeatureNotSupportedException|0A000	InputStream:31323a33343a3536	InputStream:31323a33343a3536	Reader:12:34:56	!PSQLException|22023
+time-003	*	*	String:23:59:59.999999	!SQLFeatureNotSupportedException|0A000	InputStream:32333a35393a35392e393939393939	InputStream:32333a35393a35392e393939393939	Reader:23:59:59.999999	!PSQLException|22023
+time-004	*	*	String:24:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:32343a30303a3030	InputStream:32343a30303a3030	Reader:24:00:00	!PSQLException|22023
+time-005	*	*	String:10:11:12.5	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e35	InputStream:31303a31313a31322e35	Reader:10:11:12.5	!PSQLException|22023
+time-006	*	*	String:10:11:12.123456	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e313233343536	InputStream:31303a31313a31322e313233343536	Reader:10:11:12.123456	!PSQLException|22023
+time-007	*	*	String:00:00:00.000001	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a30302e303030303031	InputStream:30303a30303a30302e303030303031	Reader:00:00:00.000001	!PSQLException|22023
+time-008	*	*	String:02:30:00	!SQLFeatureNotSupportedException|0A000	InputStream:30323a33303a3030	InputStream:30323a33303a3030	Reader:02:30:00	!PSQLException|22023
+time-009	*	*	String:23:59:59.9995	!SQLFeatureNotSupportedException|0A000	InputStream:32333a35393a35392e39393935	InputStream:32333a35393a35392e39393935	Reader:23:59:59.9995	!PSQLException|22023
+time-010	*	*	String:10:11:12.123	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e313233	InputStream:31303a31313a31322e313233	Reader:10:11:12.123	!PSQLException|22023
+time-011	*	*	String:10:11:12	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a3132	InputStream:31303a31313a3132	Reader:10:11:12	!PSQLException|22023
+timetz-001	*	*	String:00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a30302b3030	InputStream:30303a30303a30302b3030	Reader:00:00:00+00	!PSQLException|22023
+timetz-002	*	*	String:12:34:56.789+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:31323a33343a35362e3738392b30353a3330	InputStream:31323a33343a35362e3738392b30353a3330	Reader:12:34:56.789+05:30	!PSQLException|22023
+timetz-003	*	*	String:23:59:59.999999-08	!SQLFeatureNotSupportedException|0A000	InputStream:32333a35393a35392e3939393939392d3038	InputStream:32333a35393a35392e3939393939392d3038	Reader:23:59:59.999999-08	!PSQLException|22023
+timetz-004	*	*	String:24:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:32343a30303a30302b3030	InputStream:32343a30303a30302b3030	Reader:24:00:00+00	!PSQLException|22023
+timetz-005	*	*	String:10:11:12+01:02:03	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322b30313a30323a3033	InputStream:31303a31313a31322b30313a30323a3033	Reader:10:11:12+01:02:03	!PSQLException|22023
+timetz-006	*	*	String:10:11:12-15:59	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322d31353a3539	InputStream:31303a31313a31322d31353a3539	Reader:10:11:12-15:59	!PSQLException|22023
+timetz-007	*	*	String:10:11:12.5+02	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e352b3032	InputStream:31303a31313a31322e352b3032	Reader:10:11:12.5+02	!PSQLException|22023
+timetz-008	*	*	String:02:30:00+01	!SQLFeatureNotSupportedException|0A000	InputStream:30323a33303a30302b3031	InputStream:30323a33303a30302b3031	Reader:02:30:00+01	!PSQLException|22023
+timetz-009	*	*	String:00:00:00-12	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a30302d3132	InputStream:30303a30303a30302d3132	Reader:00:00:00-12	!PSQLException|22023
+timetz-010	*	*	String:23:59:59+14	!SQLFeatureNotSupportedException|0A000	InputStream:32333a35393a35392b3134	InputStream:32333a35393a35392b3134	Reader:23:59:59+14	!PSQLException|22023
+timetz-011	*	*	String:10:11:12.123+02	!SQLFeatureNotSupportedException|0A000	InputStream:31303a31313a31322e3132332b3032	InputStream:31303a31313a31322e3132332b3032	Reader:10:11:12.123+02	!PSQLException|22023
+timestamp-001	*	*	String:2020-01-02 10:11:12	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a3132	InputStream:323032302d30312d30322031303a31313a3132	Reader:2020-01-02 10:11:12	!PSQLException|22023
+timestamp-002	*	*	String:2020-01-02 10:11:12.123456	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e313233343536	InputStream:323032302d30312d30322031303a31313a31322e313233343536	Reader:2020-01-02 10:11:12.123456	!PSQLException|22023
+timestamp-003	*	*	String:2020-01-02 10:11:12.5	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e35	InputStream:323032302d30312d30322031303a31313a31322e35	Reader:2020-01-02 10:11:12.5	!PSQLException|22023
+timestamp-004	*	*	String:2020-01-02 10:11:12.000001	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e303030303031	InputStream:323032302d30312d30322031303a31313a31322e303030303031	Reader:2020-01-02 10:11:12.000001	!PSQLException|22023
+timestamp-005	*	*	String:1970-01-01 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:313937302d30312d30312030303a30303a3030	InputStream:313937302d30312d30312030303a30303a3030	Reader:1970-01-01 00:00:00	!PSQLException|22023
+timestamp-006	*	*	String:1969-12-31 23:59:59.999999	!SQLFeatureNotSupportedException|0A000	InputStream:313936392d31322d33312032333a35393a35392e393939393939	InputStream:313936392d31322d33312032333a35393a35392e393939393939	Reader:1969-12-31 23:59:59.999999	!PSQLException|22023
+timestamp-007	*	*	String:infinity	!SQLFeatureNotSupportedException|0A000	InputStream:696e66696e697479	InputStream:696e66696e697479	Reader:infinity	!PSQLException|22023
+timestamp-008	*	*	String:-infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d696e66696e697479	InputStream:2d696e66696e697479	Reader:-infinity	!PSQLException|22023
+timestamp-009	*	*	String:0001-01-01 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d30312d30312030303a30303a3030	InputStream:303030312d30312d30312030303a30303a3030	Reader:0001-01-01 00:00:00	!PSQLException|22023
+timestamp-010	*	*	String:0044-03-15 12:00:00 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d31352031323a30303a3030204243	InputStream:303034342d30332d31352031323a30303a3030204243	Reader:0044-03-15 12:00:00 BC	!PSQLException|22023
+timestamp-011	*	*	String:4713-01-01 00:00:00 BC	!SQLFeatureNotSupportedException|0A000	InputStream:343731332d30312d30312030303a30303a3030204243	InputStream:343731332d30312d30312030303a30303a3030204243	Reader:4713-01-01 00:00:00 BC	!PSQLException|22023
+timestamp-012	*	*	String:294276-12-31 23:59:59.999999	!SQLFeatureNotSupportedException|0A000	InputStream:3239343237362d31322d33312032333a35393a35392e393939393939	InputStream:3239343237362d31322d33312032333a35393a35392e393939393939	Reader:294276-12-31 23:59:59.999999	!PSQLException|22023
+timestamp-013	*	*	String:2021-03-28 02:30:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d32382030323a33303a3030	InputStream:323032312d30332d32382030323a33303a3030	Reader:2021-03-28 02:30:00	!PSQLException|22023
+timestamp-014	*	*	String:2021-10-31 02:30:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31302d33312030323a33303a3030	InputStream:323032312d31302d33312030323a33303a3030	Reader:2021-10-31 02:30:00	!PSQLException|22023
+timestamp-015	*	*	String:2021-03-14 02:30:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d31342030323a33303a3030	InputStream:323032312d30332d31342030323a33303a3030	Reader:2021-03-14 02:30:00	!PSQLException|22023
+timestamp-016	*	*	String:2021-11-07 01:30:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372030313a33303a3030	InputStream:323032312d31312d30372030313a33303a3030	Reader:2021-11-07 01:30:00	!PSQLException|22023
+timestamp-017	*	*	String:1582-10-10 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d31302030303a30303a3030	InputStream:313538322d31302d31302030303a30303a3030	Reader:1582-10-10 00:00:00	!PSQLException|22023
+timestamp-018	*	*	String:1582-10-04 23:59:59	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d30342032333a35393a3539	InputStream:313538322d31302d30342032333a35393a3539	Reader:1582-10-04 23:59:59	!PSQLException|22023
+timestamp-019	*	*	String:1582-10-15 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d31352030303a30303a3030	InputStream:313538322d31302d31352030303a30303a3030	Reader:1582-10-15 00:00:00	!PSQLException|22023
+timestamp-020	*	*	String:1900-01-01 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:313930302d30312d30312030303a30303a3030	InputStream:313930302d30312d30312030303a30303a3030	Reader:1900-01-01 00:00:00	!PSQLException|22023
+timestamp-021	*	*	String:9999-12-31 23:59:59	!SQLFeatureNotSupportedException|0A000	InputStream:393939392d31322d33312032333a35393a3539	InputStream:393939392d31322d33312032333a35393a3539	Reader:9999-12-31 23:59:59	!PSQLException|22023
+timestamp-022	*	*	String:10000-01-01 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:31303030302d30312d30312030303a30303a3030	InputStream:31303030302d30312d30312030303a30303a3030	Reader:10000-01-01 00:00:00	!PSQLException|22023
+timestamp-023	*	*	String:2020-06-15 12:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30362d31352031323a30303a3030	InputStream:323032302d30362d31352031323a30303a3030	Reader:2020-06-15 12:00:00	!PSQLException|22023
+timestamp-024	*	*	String:2020-01-02 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030303a30303a3030	InputStream:323032302d30312d30322030303a30303a3030	Reader:2020-01-02 00:00:00	!PSQLException|22023
+timestamp-025	*	*	String:2021-01-01 00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30312d30312030303a30303a3030	InputStream:323032312d30312d30312030303a30303a3030	Reader:2021-01-01 00:00:00	!PSQLException|22023
+timestamp-026	*	*	String:1883-11-18 12:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:313838332d31312d31382031323a30303a3030	InputStream:313838332d31312d31382031323a30303a3030	Reader:1883-11-18 12:00:00	!PSQLException|22023
+timestamp-027	*	*	String:1915-08-04 23:50:00	!SQLFeatureNotSupportedException|0A000	InputStream:313931352d30382d30342032333a35303a3030	InputStream:313931352d30382d30342032333a35303a3030	Reader:1915-08-04 23:50:00	!PSQLException|22023
+timestamp-028	*	*	String:2020-01-02 10:11:12.1	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e31	InputStream:323032302d30312d30322031303a31313a31322e31	Reader:2020-01-02 10:11:12.1	!PSQLException|22023
+timestamp-029	*	*	String:2020-01-02 10:11:12.12345	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e3132333435	InputStream:323032302d30312d30322031303a31313a31322e3132333435	Reader:2020-01-02 10:11:12.12345	!PSQLException|22023
+timestamp-030	*	*	String:2020-01-02 10:11:12.123	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e313233	InputStream:323032302d30312d30322031303a31313a31322e313233	Reader:2020-01-02 10:11:12.123	!PSQLException|22023
+timestamp-031	*	*	String:2020-01-02 10:11:12	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a3132	InputStream:323032302d30312d30322031303a31313a3132	Reader:2020-01-02 10:11:12	!PSQLException|22023
+timestamptz-001	*	UTC	String:2020-01-02 10:11:12+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322b3030	InputStream:323032302d30312d30322031303a31313a31322b3030	Reader:2020-01-02 10:11:12+00	!PSQLException|22023
+timestamptz-001	*	America/New_York	String:2020-01-02 05:11:12-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a31313a31322d3035	InputStream:323032302d30312d30322030353a31313a31322d3035	Reader:2020-01-02 05:11:12-05	!PSQLException|22023
+timestamptz-001	*	Asia/Kolkata	String:2020-01-02 15:41:12+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031353a34313a31322b30353a3330	InputStream:323032302d30312d30322031353a34313a31322b30353a3330	Reader:2020-01-02 15:41:12+05:30	!PSQLException|22023
+timestamptz-002	*	UTC	String:2020-01-02 10:11:12.123456+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e3132333435362b3030	InputStream:323032302d30312d30322031303a31313a31322e3132333435362b3030	Reader:2020-01-02 10:11:12.123456+00	!PSQLException|22023
+timestamptz-002	*	America/New_York	String:2020-01-02 05:11:12.123456-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a31313a31322e3132333435362d3035	InputStream:323032302d30312d30322030353a31313a31322e3132333435362d3035	Reader:2020-01-02 05:11:12.123456-05	!PSQLException|22023
+timestamptz-002	*	Asia/Kolkata	String:2020-01-02 15:41:12.123456+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031353a34313a31322e3132333435362b30353a3330	InputStream:323032302d30312d30322031353a34313a31322e3132333435362b30353a3330	Reader:2020-01-02 15:41:12.123456+05:30	!PSQLException|22023
+timestamptz-003	*	UTC	String:2020-01-02 10:11:12.5+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e352b3030	InputStream:323032302d30312d30322031303a31313a31322e352b3030	Reader:2020-01-02 10:11:12.5+00	!PSQLException|22023
+timestamptz-003	*	America/New_York	String:2020-01-02 05:11:12.5-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a31313a31322e352d3035	InputStream:323032302d30312d30322030353a31313a31322e352d3035	Reader:2020-01-02 05:11:12.5-05	!PSQLException|22023
+timestamptz-003	*	Asia/Kolkata	String:2020-01-02 15:41:12.5+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031353a34313a31322e352b30353a3330	InputStream:323032302d30312d30322031353a34313a31322e352b30353a3330	Reader:2020-01-02 15:41:12.5+05:30	!PSQLException|22023
+timestamptz-004	*	UTC	String:2020-06-15 12:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30362d31352031323a30303a30302b3030	InputStream:323032302d30362d31352031323a30303a30302b3030	Reader:2020-06-15 12:00:00+00	!PSQLException|22023
+timestamptz-004	*	America/New_York	String:2020-06-15 08:00:00-04	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30362d31352030383a30303a30302d3034	InputStream:323032302d30362d31352030383a30303a30302d3034	Reader:2020-06-15 08:00:00-04	!PSQLException|22023
+timestamptz-004	*	Asia/Kolkata	String:2020-06-15 17:30:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30362d31352031373a33303a30302b30353a3330	InputStream:323032302d30362d31352031373a33303a30302b30353a3330	Reader:2020-06-15 17:30:00+05:30	!PSQLException|22023
+timestamptz-005	*	UTC	String:1970-01-01 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313937302d30312d30312030303a30303a30302b3030	InputStream:313937302d30312d30312030303a30303a30302b3030	Reader:1970-01-01 00:00:00+00	!PSQLException|22023
+timestamptz-005	*	America/New_York	String:1969-12-31 19:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:313936392d31322d33312031393a30303a30302d3035	InputStream:313936392d31322d33312031393a30303a30302d3035	Reader:1969-12-31 19:00:00-05	!PSQLException|22023
+timestamptz-005	*	Asia/Kolkata	String:1970-01-01 05:30:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:313937302d30312d30312030353a33303a30302b30353a3330	InputStream:313937302d30312d30312030353a33303a30302b30353a3330	Reader:1970-01-01 05:30:00+05:30	!PSQLException|22023
+timestamptz-006	*	UTC	String:1969-12-31 23:59:59.999999+00	!SQLFeatureNotSupportedException|0A000	InputStream:313936392d31322d33312032333a35393a35392e3939393939392b3030	InputStream:313936392d31322d33312032333a35393a35392e3939393939392b3030	Reader:1969-12-31 23:59:59.999999+00	!PSQLException|22023
+timestamptz-006	*	America/New_York	String:1969-12-31 18:59:59.999999-05	!SQLFeatureNotSupportedException|0A000	InputStream:313936392d31322d33312031383a35393a35392e3939393939392d3035	InputStream:313936392d31322d33312031383a35393a35392e3939393939392d3035	Reader:1969-12-31 18:59:59.999999-05	!PSQLException|22023
+timestamptz-006	*	Asia/Kolkata	String:1970-01-01 05:29:59.999999+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:313937302d30312d30312030353a32393a35392e3939393939392b30353a3330	InputStream:313937302d30312d30312030353a32393a35392e3939393939392b30353a3330	Reader:1970-01-01 05:29:59.999999+05:30	!PSQLException|22023
+timestamptz-007	*	*	String:infinity	!SQLFeatureNotSupportedException|0A000	InputStream:696e66696e697479	InputStream:696e66696e697479	Reader:infinity	!PSQLException|22023
+timestamptz-008	*	*	String:-infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d696e66696e697479	InputStream:2d696e66696e697479	Reader:-infinity	!PSQLException|22023
+timestamptz-009	*	UTC	String:0001-01-01 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d30312d30312030303a30303a30302b3030	InputStream:303030312d30312d30312030303a30303a30302b3030	Reader:0001-01-01 00:00:00+00	!PSQLException|22023
+timestamptz-009	*	America/New_York	String:0001-12-31 19:03:58-04:56:02 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d31322d33312031393a30333a35382d30343a35363a3032204243	InputStream:303030312d31322d33312031393a30333a35382d30343a35363a3032204243	Reader:0001-12-31 19:03:58-04:56:02 BC	!PSQLException|22023
+timestamptz-009	*	Asia/Kolkata	String:0001-01-01 05:53:28+05:53:28	!SQLFeatureNotSupportedException|0A000	InputStream:303030312d30312d30312030353a35333a32382b30353a35333a3238	InputStream:303030312d30312d30312030353a35333a32382b30353a35333a3238	Reader:0001-01-01 05:53:28+05:53:28	!PSQLException|22023
+timestamptz-010	*	UTC	String:0044-03-15 12:00:00+00 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d31352031323a30303a30302b3030204243	InputStream:303034342d30332d31352031323a30303a30302b3030204243	Reader:0044-03-15 12:00:00+00 BC	!PSQLException|22023
+timestamptz-010	*	America/New_York	String:0044-03-15 07:03:58-04:56:02 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d31352030373a30333a35382d30343a35363a3032204243	InputStream:303034342d30332d31352030373a30333a35382d30343a35363a3032204243	Reader:0044-03-15 07:03:58-04:56:02 BC	!PSQLException|22023
+timestamptz-010	*	Asia/Kolkata	String:0044-03-15 17:53:28+05:53:28 BC	!SQLFeatureNotSupportedException|0A000	InputStream:303034342d30332d31352031373a35333a32382b30353a35333a3238204243	InputStream:303034342d30332d31352031373a35333a32382b30353a35333a3238204243	Reader:0044-03-15 17:53:28+05:53:28 BC	!PSQLException|22023
+timestamptz-011	*	UTC	String:4713-01-01 00:00:00+00 BC	!SQLFeatureNotSupportedException|0A000	InputStream:343731332d30312d30312030303a30303a30302b3030204243	InputStream:343731332d30312d30312030303a30303a30302b3030204243	Reader:4713-01-01 00:00:00+00 BC	!PSQLException|22023
+timestamptz-011	*	America/New_York	String:4714-12-31 19:03:58-04:56:02 BC	!SQLFeatureNotSupportedException|0A000	InputStream:343731342d31322d33312031393a30333a35382d30343a35363a3032204243	InputStream:343731342d31322d33312031393a30333a35382d30343a35363a3032204243	Reader:4714-12-31 19:03:58-04:56:02 BC	!PSQLException|22023
+timestamptz-011	*	Asia/Kolkata	String:4713-01-01 05:53:28+05:53:28 BC	!SQLFeatureNotSupportedException|0A000	InputStream:343731332d30312d30312030353a35333a32382b30353a35333a3238204243	InputStream:343731332d30312d30312030353a35333a32382b30353a35333a3238204243	Reader:4713-01-01 05:53:28+05:53:28 BC	!PSQLException|22023
+timestamptz-012	*	UTC	String:294276-12-31 23:59:59.999999+00	!SQLFeatureNotSupportedException|0A000	InputStream:3239343237362d31322d33312032333a35393a35392e3939393939392b3030	InputStream:3239343237362d31322d33312032333a35393a35392e3939393939392b3030	Reader:294276-12-31 23:59:59.999999+00	!PSQLException|22023
+timestamptz-012	*	America/New_York	String:294276-12-31 18:59:59.999999-05	!SQLFeatureNotSupportedException|0A000	InputStream:3239343237362d31322d33312031383a35393a35392e3939393939392d3035	InputStream:3239343237362d31322d33312031383a35393a35392e3939393939392d3035	Reader:294276-12-31 18:59:59.999999-05	!PSQLException|22023
+timestamptz-012	*	Asia/Kolkata	String:294277-01-01 05:29:59.999999+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:3239343237372d30312d30312030353a32393a35392e3939393939392b30353a3330	InputStream:3239343237372d30312d30312030353a32393a35392e3939393939392b30353a3330	Reader:294277-01-01 05:29:59.999999+05:30	!PSQLException|22023
+timestamptz-013	*	UTC	String:1900-01-01 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313930302d30312d30312030303a30303a30302b3030	InputStream:313930302d30312d30312030303a30303a30302b3030	Reader:1900-01-01 00:00:00+00	!PSQLException|22023
+timestamptz-013	*	America/New_York	String:1899-12-31 19:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:313839392d31322d33312031393a30303a30302d3035	InputStream:313839392d31322d33312031393a30303a30302d3035	Reader:1899-12-31 19:00:00-05	!PSQLException|22023
+timestamptz-013	*	Asia/Kolkata	String:1900-01-01 05:21:10+05:21:10	!SQLFeatureNotSupportedException|0A000	InputStream:313930302d30312d30312030353a32313a31302b30353a32313a3130	InputStream:313930302d30312d30312030353a32313a31302b30353a32313a3130	Reader:1900-01-01 05:21:10+05:21:10	!PSQLException|22023
+timestamptz-014	*	UTC	String:1850-06-01 12:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313835302d30362d30312031323a30303a30302b3030	InputStream:313835302d30362d30312031323a30303a30302b3030	Reader:1850-06-01 12:00:00+00	!PSQLException|22023
+timestamptz-014	*	America/New_York	String:1850-06-01 07:03:58-04:56:02	!SQLFeatureNotSupportedException|0A000	InputStream:313835302d30362d30312030373a30333a35382d30343a35363a3032	InputStream:313835302d30362d30312030373a30333a35382d30343a35363a3032	Reader:1850-06-01 07:03:58-04:56:02	!PSQLException|22023
+timestamptz-014	*	Asia/Kolkata	String:1850-06-01 17:53:28+05:53:28	!SQLFeatureNotSupportedException|0A000	InputStream:313835302d30362d30312031373a35333a32382b30353a35333a3238	InputStream:313835302d30362d30312031373a35333a32382b30353a35333a3238	Reader:1850-06-01 17:53:28+05:53:28	!PSQLException|22023
+timestamptz-015	*	UTC	String:2021-03-28 01:30:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d32382030313a33303a30302b3030	InputStream:323032312d30332d32382030313a33303a30302b3030	Reader:2021-03-28 01:30:00+00	!PSQLException|22023
+timestamptz-015	*	America/New_York	String:2021-03-27 21:30:00-04	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d32372032313a33303a30302d3034	InputStream:323032312d30332d32372032313a33303a30302d3034	Reader:2021-03-27 21:30:00-04	!PSQLException|22023
+timestamptz-015	*	Asia/Kolkata	String:2021-03-28 07:00:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d30332d32382030373a30303a30302b30353a3330	InputStream:323032312d30332d32382030373a30303a30302b30353a3330	Reader:2021-03-28 07:00:00+05:30	!PSQLException|22023
+timestamptz-016	*	UTC	String:2021-11-07 05:30:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372030353a33303a30302b3030	InputStream:323032312d31312d30372030353a33303a30302b3030	Reader:2021-11-07 05:30:00+00	!PSQLException|22023
+timestamptz-016	*	America/New_York	String:2021-11-07 01:30:00-04	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372030313a33303a30302d3034	InputStream:323032312d31312d30372030313a33303a30302d3034	Reader:2021-11-07 01:30:00-04	!PSQLException|22023
+timestamptz-016	*	Asia/Kolkata	String:2021-11-07 11:00:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372031313a30303a30302b30353a3330	InputStream:323032312d31312d30372031313a30303a30302b30353a3330	Reader:2021-11-07 11:00:00+05:30	!PSQLException|22023
+timestamptz-017	*	UTC	String:2021-11-07 06:30:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372030363a33303a30302b3030	InputStream:323032312d31312d30372030363a33303a30302b3030	Reader:2021-11-07 06:30:00+00	!PSQLException|22023
+timestamptz-017	*	America/New_York	String:2021-11-07 01:30:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372030313a33303a30302d3035	InputStream:323032312d31312d30372030313a33303a30302d3035	Reader:2021-11-07 01:30:00-05	!PSQLException|22023
+timestamptz-017	*	Asia/Kolkata	String:2021-11-07 12:00:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032312d31312d30372031323a30303a30302b30353a3330	InputStream:323032312d31312d30372031323a30303a30302b30353a3330	Reader:2021-11-07 12:00:00+05:30	!PSQLException|22023
+timestamptz-018	*	UTC	String:10000-01-01 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:31303030302d30312d30312030303a30303a30302b3030	InputStream:31303030302d30312d30312030303a30303a30302b3030	Reader:10000-01-01 00:00:00+00	!PSQLException|22023
+timestamptz-018	*	America/New_York	String:9999-12-31 19:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:393939392d31322d33312031393a30303a30302d3035	InputStream:393939392d31322d33312031393a30303a30302d3035	Reader:9999-12-31 19:00:00-05	!PSQLException|22023
+timestamptz-018	*	Asia/Kolkata	String:10000-01-01 05:30:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:31303030302d30312d30312030353a33303a30302b30353a3330	InputStream:31303030302d30312d30312030353a33303a30302b30353a3330	Reader:10000-01-01 05:30:00+05:30	!PSQLException|22023
+timestamptz-019	*	UTC	String:2020-01-02 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030303a30303a30302b3030	InputStream:323032302d30312d30322030303a30303a30302b3030	Reader:2020-01-02 00:00:00+00	!PSQLException|22023
+timestamptz-019	*	America/New_York	String:2020-01-01 19:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30312031393a30303a30302d3035	InputStream:323032302d30312d30312031393a30303a30302d3035	Reader:2020-01-01 19:00:00-05	!PSQLException|22023
+timestamptz-019	*	Asia/Kolkata	String:2020-01-02 05:30:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a33303a30302b30353a3330	InputStream:323032302d30312d30322030353a33303a30302b30353a3330	Reader:2020-01-02 05:30:00+05:30	!PSQLException|22023
+timestamptz-020	*	UTC	String:2020-01-01 22:30:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30312032323a33303a30302b3030	InputStream:323032302d30312d30312032323a33303a30302b3030	Reader:2020-01-01 22:30:00+00	!PSQLException|22023
+timestamptz-020	*	America/New_York	String:2020-01-01 17:30:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30312031373a33303a30302d3035	InputStream:323032302d30312d30312031373a33303a30302d3035	Reader:2020-01-01 17:30:00-05	!PSQLException|22023
+timestamptz-020	*	Asia/Kolkata	String:2020-01-02 04:00:00+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030343a30303a30302b30353a3330	InputStream:323032302d30312d30322030343a30303a30302b30353a3330	Reader:2020-01-02 04:00:00+05:30	!PSQLException|22023
+timestamptz-021	*	UTC	String:1582-10-10 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d31302030303a30303a30302b3030	InputStream:313538322d31302d31302030303a30303a30302b3030	Reader:1582-10-10 00:00:00+00	!PSQLException|22023
+timestamptz-021	*	America/New_York	String:1582-10-09 19:03:58-04:56:02	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d30392031393a30333a35382d30343a35363a3032	InputStream:313538322d31302d30392031393a30333a35382d30343a35363a3032	Reader:1582-10-09 19:03:58-04:56:02	!PSQLException|22023
+timestamptz-021	*	Asia/Kolkata	String:1582-10-10 05:53:28+05:53:28	!SQLFeatureNotSupportedException|0A000	InputStream:313538322d31302d31302030353a35333a32382b30353a35333a3238	InputStream:313538322d31302d31302030353a35333a32382b30353a35333a3238	Reader:1582-10-10 05:53:28+05:53:28	!PSQLException|22023
+timestamptz-022	*	UTC	String:1883-11-18 17:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313838332d31312d31382031373a30303a30302b3030	InputStream:313838332d31312d31382031373a30303a30302b3030	Reader:1883-11-18 17:00:00+00	!PSQLException|22023
+timestamptz-022	*	America/New_York	String:1883-11-18 12:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:313838332d31312d31382031323a30303a30302d3035	InputStream:313838332d31312d31382031323a30303a30302d3035	Reader:1883-11-18 12:00:00-05	!PSQLException|22023
+timestamptz-022	*	Asia/Kolkata	String:1883-11-18 22:21:10+05:21:10	!SQLFeatureNotSupportedException|0A000	InputStream:313838332d31312d31382032323a32313a31302b30353a32313a3130	InputStream:313838332d31312d31382032323a32313a31302b30353a32313a3130	Reader:1883-11-18 22:21:10+05:21:10	!PSQLException|22023
+timestamptz-023	*	UTC	String:1941-10-01 00:00:00+00	!SQLFeatureNotSupportedException|0A000	InputStream:313934312d31302d30312030303a30303a30302b3030	InputStream:313934312d31302d30312030303a30303a30302b3030	Reader:1941-10-01 00:00:00+00	!PSQLException|22023
+timestamptz-023	*	America/New_York	String:1941-09-30 19:00:00-05	!SQLFeatureNotSupportedException|0A000	InputStream:313934312d30392d33302031393a30303a30302d3035	InputStream:313934312d30392d33302031393a30303a30302d3035	Reader:1941-09-30 19:00:00-05	!PSQLException|22023
+timestamptz-023	*	Asia/Kolkata	String:1941-10-01 06:30:00+06:30	!SQLFeatureNotSupportedException|0A000	InputStream:313934312d31302d30312030363a33303a30302b30363a3330	InputStream:313934312d31302d30312030363a33303a30302b30363a3330	Reader:1941-10-01 06:30:00+06:30	!PSQLException|22023
+timestamptz-024	*	UTC	String:2020-01-02 10:11:12.000001+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e3030303030312b3030	InputStream:323032302d30312d30322031303a31313a31322e3030303030312b3030	Reader:2020-01-02 10:11:12.000001+00	!PSQLException|22023
+timestamptz-024	*	America/New_York	String:2020-01-02 05:11:12.000001-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a31313a31322e3030303030312d3035	InputStream:323032302d30312d30322030353a31313a31322e3030303030312d3035	Reader:2020-01-02 05:11:12.000001-05	!PSQLException|22023
+timestamptz-024	*	Asia/Kolkata	String:2020-01-02 15:41:12.000001+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031353a34313a31322e3030303030312b30353a3330	InputStream:323032302d30312d30322031353a34313a31322e3030303030312b30353a3330	Reader:2020-01-02 15:41:12.000001+05:30	!PSQLException|22023
+timestamptz-025	*	UTC	String:9999-12-31 23:59:59+00	!SQLFeatureNotSupportedException|0A000	InputStream:393939392d31322d33312032333a35393a35392b3030	InputStream:393939392d31322d33312032333a35393a35392b3030	Reader:9999-12-31 23:59:59+00	!PSQLException|22023
+timestamptz-025	*	America/New_York	String:9999-12-31 18:59:59-05	!SQLFeatureNotSupportedException|0A000	InputStream:393939392d31322d33312031383a35393a35392d3035	InputStream:393939392d31322d33312031383a35393a35392d3035	Reader:9999-12-31 18:59:59-05	!PSQLException|22023
+timestamptz-025	*	Asia/Kolkata	String:10000-01-01 05:29:59+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:31303030302d30312d30312030353a32393a35392b30353a3330	InputStream:31303030302d30312d30312030353a32393a35392b30353a3330	Reader:10000-01-01 05:29:59+05:30	!PSQLException|22023
+timestamptz-026	*	UTC	String:2020-01-02 10:11:12.123+00	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031303a31313a31322e3132332b3030	InputStream:323032302d30312d30322031303a31313a31322e3132332b3030	Reader:2020-01-02 10:11:12.123+00	!PSQLException|22023
+timestamptz-026	*	America/New_York	String:2020-01-02 05:11:12.123-05	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322030353a31313a31322e3132332d3035	InputStream:323032302d30312d30322030353a31313a31322e3132332d3035	Reader:2020-01-02 05:11:12.123-05	!PSQLException|22023
+timestamptz-026	*	Asia/Kolkata	String:2020-01-02 15:41:12.123+05:30	!SQLFeatureNotSupportedException|0A000	InputStream:323032302d30312d30322031353a34313a31322e3132332b30353a3330	InputStream:323032302d30312d30322031353a34313a31322e3132332b30353a3330	Reader:2020-01-02 15:41:12.123+05:30	!PSQLException|22023
+interval-001	*	*	String:00:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a3030	InputStream:30303a30303a3030	Reader:00:00:00	!PSQLException|22023
+interval-002	*	*	String:1 year 2 mons 3 days 04:05:06.789	!SQLFeatureNotSupportedException|0A000	InputStream:3120796561722032206d6f6e73203320646179732030343a30353a30362e373839	InputStream:3120796561722032206d6f6e73203320646179732030343a30353a30362e373839	Reader:1 year 2 mons 3 days 04:05:06.789	!PSQLException|22023
+interval-003	*	*	String:-1 years -2 mons +3 days -04:05:06.789012	!SQLFeatureNotSupportedException|0A000	InputStream:2d31207965617273202d32206d6f6e73202b332064617973202d30343a30353a30362e373839303132	InputStream:2d31207965617273202d32206d6f6e73202b332064617973202d30343a30353a30362e373839303132	Reader:-1 years -2 mons +3 days -04:05:06.789012	!PSQLException|22023
+interval-004	*	*	String:1 day	!SQLFeatureNotSupportedException|0A000	InputStream:3120646179	InputStream:3120646179	Reader:1 day	!PSQLException|22023
+interval-005	*	*	String:00:00:01	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a3031	InputStream:30303a30303a3031	Reader:00:00:01	!PSQLException|22023
+interval-006	*	*	String:-00:00:00.000001	!SQLFeatureNotSupportedException|0A000	InputStream:2d30303a30303a30302e303030303031	InputStream:2d30303a30303a30302e303030303031	Reader:-00:00:00.000001	!PSQLException|22023
+interval-007	*	*	String:178000000 years	!SQLFeatureNotSupportedException|0A000	InputStream:313738303030303030207965617273	InputStream:313738303030303030207965617273	Reader:178000000 years	!PSQLException|22023
+interval-008	*	*	String:1 mon	!SQLFeatureNotSupportedException|0A000	InputStream:31206d6f6e	InputStream:31206d6f6e	Reader:1 mon	!PSQLException|22023
+interval-009	*	*	String:2 years	!SQLFeatureNotSupportedException|0A000	InputStream:32207965617273	InputStream:32207965617273	Reader:2 years	!PSQLException|22023
+interval-010	*	*	String:1 day 00:00:00.5	!SQLFeatureNotSupportedException|0A000	InputStream:31206461792030303a30303a30302e35	InputStream:31206461792030303a30303a30302e35	Reader:1 day 00:00:00.5	!PSQLException|22023
+interval-011	*	*	String:-1 days	!SQLFeatureNotSupportedException|0A000	InputStream:2d312064617973	InputStream:2d312064617973	Reader:-1 days	!PSQLException|22023
+interval-012	*	*	String:100:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:3130303a30303a3030	InputStream:3130303a30303a3030	Reader:100:00:00	!PSQLException|22023
+interval-013	*	*	String:11 mons	!SQLFeatureNotSupportedException|0A000	InputStream:3131206d6f6e73	InputStream:3131206d6f6e73	Reader:11 mons	!PSQLException|22023
+interval-014	*	*	String:infinity	!SQLFeatureNotSupportedException|0A000	InputStream:696e66696e697479	InputStream:696e66696e697479	Reader:infinity	!PSQLException|22023
+interval-015	*	*	String:-infinity	!SQLFeatureNotSupportedException|0A000	InputStream:2d696e66696e697479	InputStream:2d696e66696e697479	Reader:-infinity	!PSQLException|22023
+interval-016	*	*	String:3 days 04:05:06	!SQLFeatureNotSupportedException|0A000	InputStream:3320646179732030343a30353a3036	InputStream:3320646179732030343a30353a3036	Reader:3 days 04:05:06	!PSQLException|22023
+interval-017	*	*	String:00:00:01.5	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a30312e35	InputStream:30303a30303a30312e35	Reader:00:00:01.5	!PSQLException|22023
+interval-018	*	*	String:-178000000 years	!SQLFeatureNotSupportedException|0A000	InputStream:2d313738303030303030207965617273	InputStream:2d313738303030303030207965617273	Reader:-178000000 years	!PSQLException|22023
+interval-019	*	*	String:1 year 2 mons	!SQLFeatureNotSupportedException|0A000	InputStream:3120796561722032206d6f6e73	InputStream:3120796561722032206d6f6e73	Reader:1 year 2 mons	!PSQLException|22023
+interval-020	*	*	String:1 day -00:00:01	!SQLFeatureNotSupportedException|0A000	InputStream:3120646179202d30303a30303a3031	InputStream:3120646179202d30303a30303a3031	Reader:1 day -00:00:01	!PSQLException|22023
+interval-021	*	*	String:00:00:00.000001	!SQLFeatureNotSupportedException|0A000	InputStream:30303a30303a30302e303030303031	InputStream:30303a30303a30302e303030303031	Reader:00:00:00.000001	!PSQLException|22023
+interval-022	*	*	String:1 year	!SQLFeatureNotSupportedException|0A000	InputStream:312079656172	InputStream:312079656172	Reader:1 year	!PSQLException|22023
+interval-023	*	*	String:25:00:00	!SQLFeatureNotSupportedException|0A000	InputStream:32353a30303a3030	InputStream:32353a30303a3030	Reader:25:00:00	!PSQLException|22023
+interval-024	*	*	String:-00:59:59.999999	!SQLFeatureNotSupportedException|0A000	InputStream:2d30303a35393a35392e393939393939	InputStream:2d30303a35393a35392e393939393939	Reader:-00:59:59.999999	!PSQLException|22023
+interval-025	*	*	String:1 year 2 mons	!SQLFeatureNotSupportedException|0A000	InputStream:3120796561722032206d6f6e73	InputStream:3120796561722032206d6f6e73	Reader:1 year 2 mons	!PSQLException|22023
+interval-026	*	*	String:1 day 00:00:01.123	!SQLFeatureNotSupportedException|0A000	InputStream:31206461792030303a30303a30312e313233	InputStream:31206461792030303a30303a30312e313233	Reader:1 day 00:00:01.123	!PSQLException|22023
+uuid-001	*	*	String:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	!SQLFeatureNotSupportedException|0A000	InputStream:61306565626339392d396330622d346566382d626236642d366262396264333830613131	InputStream:61306565626339392d396330622d346566382d626236642d366262396264333830613131	Reader:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	!PSQLException|22023
+uuid-002	*	*	String:00000000-0000-0000-0000-000000000000	!SQLFeatureNotSupportedException|0A000	InputStream:30303030303030302d303030302d303030302d303030302d303030303030303030303030	InputStream:30303030303030302d303030302d303030302d303030302d303030303030303030303030	Reader:00000000-0000-0000-0000-000000000000	!PSQLException|22023
+uuid-003	*	*	String:ffffffff-ffff-ffff-ffff-ffffffffffff	!SQLFeatureNotSupportedException|0A000	InputStream:66666666666666662d666666662d666666662d666666662d666666666666666666666666	InputStream:66666666666666662d666666662d666666662d666666662d666666666666666666666666	Reader:ffffffff-ffff-ffff-ffff-ffffffffffff	!PSQLException|22023
+json-001	*	*	String:{"a":1}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2261223a317d	InputStream:7b2261223a317d	Reader:{"a":1}	!PSQLException|22023
+json-002	*	*	String:null	!SQLFeatureNotSupportedException|0A000	InputStream:6e756c6c	InputStream:6e756c6c	Reader:null	!PSQLException|22023
+json-003	*	*	String:[1, 2]	!SQLFeatureNotSupportedException|0A000	InputStream:5b312c20325d	InputStream:5b312c20325d	Reader:[1, 2]	!PSQLException|22023
+json-004	*	*	String:"str"	!SQLFeatureNotSupportedException|0A000	InputStream:2273747222	InputStream:2273747222	Reader:"str"	!PSQLException|22023
+json-005	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+json-006	*	*	String: {"a" : 1 } 	!SQLFeatureNotSupportedException|0A000	InputStream:207b226122203a2031207d20	InputStream:207b226122203a2031207d20	Reader: {"a" : 1 } 	!PSQLException|22023
+json-007	*	*	String:true	!SQLFeatureNotSupportedException|0A000	InputStream:74727565	InputStream:74727565	Reader:true	!PSQLException|22023
+jsonb-001	*	*	String:{"a": 1}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2261223a20317d	InputStream:7b2261223a20317d	Reader:{"a": 1}	!PSQLException|22023
+jsonb-002	*	*	String:null	!SQLFeatureNotSupportedException|0A000	InputStream:6e756c6c	InputStream:6e756c6c	Reader:null	!PSQLException|22023
+jsonb-003	*	*	String:[1, 2]	!SQLFeatureNotSupportedException|0A000	InputStream:5b312c20325d	InputStream:5b312c20325d	Reader:[1, 2]	!PSQLException|22023
+jsonb-004	*	*	String:"str"	!SQLFeatureNotSupportedException|0A000	InputStream:2273747222	InputStream:2273747222	Reader:"str"	!PSQLException|22023
+jsonb-005	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+jsonb-006	*	*	String:true	!SQLFeatureNotSupportedException|0A000	InputStream:74727565	InputStream:74727565	Reader:true	!PSQLException|22023
+jsonb-007	*	*	String:[]	!SQLFeatureNotSupportedException|0A000	InputStream:5b5d	InputStream:5b5d	Reader:[]	!PSQLException|22023
+xml-001	*	*	String:<a b="c">t</a>	!SQLFeatureNotSupportedException|0A000	InputStream:3c6120623d2263223e743c2f613e	InputStream:3c6120623d2263223e743c2f613e	Reader:<a b="c">t</a>	!PSQLException|22023
+xml-002	*	*	String:text	!SQLFeatureNotSupportedException|0A000	InputStream:74657874	InputStream:74657874	Reader:text	!PSQLException|22023
+xml-003	*	*	String:<a/>	!SQLFeatureNotSupportedException|0A000	InputStream:3c612f3e	InputStream:3c612f3e	Reader:<a/>	!PSQLException|22023
+bit-001	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+bit-002	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+bit-003	*	*	String:10101010	!SQLFeatureNotSupportedException|0A000	InputStream:3130313031303130	InputStream:3130313031303130	Reader:10101010	!PSQLException|22023
+bit-004	*	*	String:101	!SQLFeatureNotSupportedException|0A000	InputStream:313031	InputStream:313031	Reader:101	!PSQLException|22023
+varbit-001	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	!PSQLException|22023
+varbit-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+varbit-003	*	*	String:0	!SQLFeatureNotSupportedException|0A000	InputStream:30	InputStream:30	Reader:0	!PSQLException|22023
+varbit-004	*	*	String:101	!SQLFeatureNotSupportedException|0A000	InputStream:313031	InputStream:313031	Reader:101	!PSQLException|22023
+varbit-005	*	*	String:1010	!SQLFeatureNotSupportedException|0A000	InputStream:31303130	InputStream:31303130	Reader:1010	!PSQLException|22023
+inet-001	*	*	String:192.168.1.1	!SQLFeatureNotSupportedException|0A000	InputStream:3139322e3136382e312e31	InputStream:3139322e3136382e312e31	Reader:192.168.1.1	!PSQLException|22023
+inet-002	*	*	String:192.168.1.1/24	!SQLFeatureNotSupportedException|0A000	InputStream:3139322e3136382e312e312f3234	InputStream:3139322e3136382e312e312f3234	Reader:192.168.1.1/24	!PSQLException|22023
+inet-003	*	*	String:::1	!SQLFeatureNotSupportedException|0A000	InputStream:3a3a31	InputStream:3a3a31	Reader:::1	!PSQLException|22023
+inet-004	*	*	String:2001:db8::1/64	!SQLFeatureNotSupportedException|0A000	InputStream:323030313a6462383a3a312f3634	InputStream:323030313a6462383a3a312f3634	Reader:2001:db8::1/64	!PSQLException|22023
+inet-005	*	*	String:10.0.0.0/8	!SQLFeatureNotSupportedException|0A000	InputStream:31302e302e302e302f38	InputStream:31302e302e302e302f38	Reader:10.0.0.0/8	!PSQLException|22023
+inet-006	*	*	String:::ffff:1.2.3.4	!SQLFeatureNotSupportedException|0A000	InputStream:3a3a666666663a312e322e332e34	InputStream:3a3a666666663a312e322e332e34	Reader:::ffff:1.2.3.4	!PSQLException|22023
+cidr-001	*	*	String:192.168.1.0/24	!SQLFeatureNotSupportedException|0A000	InputStream:3139322e3136382e312e302f3234	InputStream:3139322e3136382e312e302f3234	Reader:192.168.1.0/24	!PSQLException|22023
+cidr-002	*	*	String:10.0.0.0/8	!SQLFeatureNotSupportedException|0A000	InputStream:31302e302e302e302f38	InputStream:31302e302e302e302f38	Reader:10.0.0.0/8	!PSQLException|22023
+cidr-003	*	*	String:::/0	!SQLFeatureNotSupportedException|0A000	InputStream:3a3a2f30	InputStream:3a3a2f30	Reader:::/0	!PSQLException|22023
+cidr-004	*	*	String:2001:db8::/32	!SQLFeatureNotSupportedException|0A000	InputStream:323030313a6462383a3a2f3332	InputStream:323030313a6462383a3a2f3332	Reader:2001:db8::/32	!PSQLException|22023
+macaddr-001	*	*	String:08:00:2b:01:02:03	!SQLFeatureNotSupportedException|0A000	InputStream:30383a30303a32623a30313a30323a3033	InputStream:30383a30303a32623a30313a30323a3033	Reader:08:00:2b:01:02:03	!PSQLException|22023
+macaddr8-001	*	*	String:08:00:2b:01:02:03:04:05	!SQLFeatureNotSupportedException|0A000	InputStream:30383a30303a32623a30313a30323a30333a30343a3035	InputStream:30383a30303a32623a30313a30323a30333a30343a3035	Reader:08:00:2b:01:02:03:04:05	!PSQLException|22023
+point-001	*	*	String:(1,2)	!SQLFeatureNotSupportedException|0A000	InputStream:28312c3229	InputStream:28312c3229	Reader:(1,2)	!PSQLException|22023
+point-002	*	*	String:(-1.5,25000000000)	!SQLFeatureNotSupportedException|0A000	InputStream:282d312e352c323530303030303030303029	InputStream:282d312e352c323530303030303030303029	Reader:(-1.5,25000000000)	!PSQLException|22023
+point-003	*	*	String:(NaN,Infinity)	!SQLFeatureNotSupportedException|0A000	InputStream:284e614e2c496e66696e69747929	InputStream:284e614e2c496e66696e69747929	Reader:(NaN,Infinity)	!PSQLException|22023
+point-004	*	*	String:(0,0)	!SQLFeatureNotSupportedException|0A000	InputStream:28302c3029	InputStream:28302c3029	Reader:(0,0)	!PSQLException|22023
+point-005	*	*	String:(1e-05,-0)	!SQLFeatureNotSupportedException|0A000	InputStream:2831652d30352c2d3029	InputStream:2831652d30352c2d3029	Reader:(1e-05,-0)	!PSQLException|22023
+box-001	*	*	String:(3,4),(1,2)	!SQLFeatureNotSupportedException|0A000	InputStream:28332c34292c28312c3229	InputStream:28332c34292c28312c3229	Reader:(3,4),(1,2)	!PSQLException|22023
+box-002	*	*	String:(3,4),(1,2)	!SQLFeatureNotSupportedException|0A000	InputStream:28332c34292c28312c3229	InputStream:28332c34292c28312c3229	Reader:(3,4),(1,2)	!PSQLException|22023
+box-003	*	*	String:(0,0),(0,0)	!SQLFeatureNotSupportedException|0A000	InputStream:28302c30292c28302c3029	InputStream:28302c30292c28302c3029	Reader:(0,0),(0,0)	!PSQLException|22023
+circle-001	*	*	String:<(1,2),3>	!SQLFeatureNotSupportedException|0A000	InputStream:3c28312c32292c333e	InputStream:3c28312c32292c333e	Reader:<(1,2),3>	!PSQLException|22023
+circle-002	*	*	String:<(0,0),0>	!SQLFeatureNotSupportedException|0A000	InputStream:3c28302c30292c303e	InputStream:3c28302c30292c303e	Reader:<(0,0),0>	!PSQLException|22023
+circle-003	*	*	String:<(-1.5,2.5),10000000000>	!SQLFeatureNotSupportedException|0A000	InputStream:3c282d312e352c322e35292c31303030303030303030303e	InputStream:3c282d312e352c322e35292c31303030303030303030303e	Reader:<(-1.5,2.5),10000000000>	!PSQLException|22023
+line-001	*	*	String:{1,2,3}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c322c337d	InputStream:7b312c322c337d	Reader:{1,2,3}	!PSQLException|22023
+line-002	*	*	String:{0,-1,0}	!SQLFeatureNotSupportedException|0A000	InputStream:7b302c2d312c307d	InputStream:7b302c2d312c307d	Reader:{0,-1,0}	!PSQLException|22023
+line-003	*	*	String:{1,-1,0}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c2d312c307d	InputStream:7b312c2d312c307d	Reader:{1,-1,0}	!PSQLException|22023
+lseg-001	*	*	String:[(1,2),(3,4)]	!SQLFeatureNotSupportedException|0A000	InputStream:5b28312c32292c28332c34295d	InputStream:5b28312c32292c28332c34295d	Reader:[(1,2),(3,4)]	!PSQLException|22023
+lseg-002	*	*	String:[(0,0),(0,0)]	!SQLFeatureNotSupportedException|0A000	InputStream:5b28302c30292c28302c30295d	InputStream:5b28302c30292c28302c30295d	Reader:[(0,0),(0,0)]	!PSQLException|22023
+path-001	*	*	String:((1,2),(3,4))	!SQLFeatureNotSupportedException|0A000	InputStream:2828312c32292c28332c342929	InputStream:2828312c32292c28332c342929	Reader:((1,2),(3,4))	!PSQLException|22023
+path-002	*	*	String:[(1,2),(3,4)]	!SQLFeatureNotSupportedException|0A000	InputStream:5b28312c32292c28332c34295d	InputStream:5b28312c32292c28332c34295d	Reader:[(1,2),(3,4)]	!PSQLException|22023
+path-003	*	*	String:((0,0))	!SQLFeatureNotSupportedException|0A000	InputStream:2828302c302929	InputStream:2828302c302929	Reader:((0,0))	!PSQLException|22023
+path-004	*	*	String:[(1,2),(3,4),(5,6)]	!SQLFeatureNotSupportedException|0A000	InputStream:5b28312c32292c28332c34292c28352c36295d	InputStream:5b28312c32292c28332c34292c28352c36295d	Reader:[(1,2),(3,4),(5,6)]	!PSQLException|22023
+polygon-001	*	*	String:((1,2),(3,4),(5,6))	!SQLFeatureNotSupportedException|0A000	InputStream:2828312c32292c28332c34292c28352c362929	InputStream:2828312c32292c28332c34292c28352c362929	Reader:((1,2),(3,4),(5,6))	!PSQLException|22023
+polygon-002	*	*	String:((0,0))	!SQLFeatureNotSupportedException|0A000	InputStream:2828302c302929	InputStream:2828302c302929	Reader:((0,0))	!PSQLException|22023
+tsvector-001	*	*	String:'a' 'b'	!SQLFeatureNotSupportedException|0A000	InputStream:27612720276227	InputStream:27612720276227	Reader:'a' 'b'	!PSQLException|22023
+tsquery-001	*	*	String:'a' & 'b'	!SQLFeatureNotSupportedException|0A000	InputStream:276127202620276227	InputStream:276127202620276227	Reader:'a' & 'b'	!PSQLException|22023
+refcursor-001	*	*	String:c1	!SQLFeatureNotSupportedException|0A000	InputStream:6331	InputStream:6331	Reader:c1	!PSQLException|22023
+other-001	*	*	String:pg_class	!SQLFeatureNotSupportedException|0A000	InputStream:70675f636c617373	InputStream:70675f636c617373	Reader:pg_class	!PSQLException|22023
+other-002	*	*	String:1	!SQLFeatureNotSupportedException|0A000	InputStream:31	InputStream:31	Reader:1	!PSQLException|22023
+other-003	*	*	String:(0,1)	!SQLFeatureNotSupportedException|0A000	InputStream:28302c3129	InputStream:28302c3129	Reader:(0,1)	!PSQLException|22023
+other-004	*	*	String:0/0	!SQLFeatureNotSupportedException|0A000	InputStream:302f30	InputStream:302f30	Reader:0/0	!PSQLException|22023
+other-005	*	*	String:[1,5)	!SQLFeatureNotSupportedException|0A000	InputStream:5b312c3529	InputStream:5b312c3529	Reader:[1,5)	!PSQLException|22023
+other-006	*	*	String:empty	!SQLFeatureNotSupportedException|0A000	InputStream:656d707479	InputStream:656d707479	Reader:empty	!PSQLException|22023
+other-007	*	*	String:[1.5,2.5]	!SQLFeatureNotSupportedException|0A000	InputStream:5b312e352c322e355d	InputStream:5b312e352c322e355d	Reader:[1.5,2.5]	!PSQLException|22023
+other-008	*	*	String:$."a"	!SQLFeatureNotSupportedException|0A000	InputStream:242e226122	InputStream:242e226122	Reader:$."a"	!PSQLException|22023
+other-009	*	*	String:(1,a)	!SQLFeatureNotSupportedException|0A000	InputStream:28312c6129	InputStream:28312c6129	Reader:(1,a)	!PSQLException|22023
+other-010	*	*	String:(,"a b","c,d")	!SQLFeatureNotSupportedException|0A000	InputStream:282c22612062222c22632c642229	InputStream:282c22612062222c22632c642229	Reader:(,"a b","c,d")	!PSQLException|22023
+other-011	*	*	String:x	!SQLFeatureNotSupportedException|0A000	InputStream:78	InputStream:78	Reader:x	String:x
+other-012	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	!PSQLException|22023
+other-013	*	*	String:abc	!SQLFeatureNotSupportedException|0A000	InputStream:616263	InputStream:616263	Reader:abc	!PSQLException|22023
+enum-001	*	*	String:ok	!SQLFeatureNotSupportedException|0A000	InputStream:6f6b	InputStream:6f6b	Reader:ok	String:ok
+enum-002	*	*	String:sad	!SQLFeatureNotSupportedException|0A000	InputStream:736164	InputStream:736164	Reader:sad	String:sad
+enum-003	*	*	String:red	!SQLFeatureNotSupportedException|0A000	InputStream:726564	InputStream:726564	Reader:red	String:red
+enum-004	*	*	String:x	!SQLFeatureNotSupportedException|0A000	InputStream:78	InputStream:78	Reader:x	String:x
+composite-001	*	*	String:(1,a)	!SQLFeatureNotSupportedException|0A000	InputStream:28312c6129	InputStream:28312c6129	Reader:(1,a)	!PSQLException|22023
+composite-002	*	*	String:(,"a b")	!SQLFeatureNotSupportedException|0A000	InputStream:282c226120622229	InputStream:282c226120622229	Reader:(,"a b")	!PSQLException|22023
+domain-001	*	*	String:5	!SQLFeatureNotSupportedException|0A000	InputStream:35	InputStream:35	Reader:5	!PSQLException|22023
+domain-002	*	*	String:abc	!SQLFeatureNotSupportedException|0A000	InputStream:616263	InputStream:616263	Reader:abc	String:abc
+hstore-001	*	*	String:"a"=>"1", "b"=>NULL	!SQLFeatureNotSupportedException|0A000	InputStream:2261223d3e2231222c202262223d3e4e554c4c	InputStream:2261223d3e2231222c202262223d3e4e554c4c	Reader:"a"=>"1", "b"=>NULL	!PSQLException|22023
+hstore-002	*	*	String:	!SQLFeatureNotSupportedException|0A000	InputStream:	InputStream:	Reader:	!PSQLException|22023
+hstore-003	*	*	String:"k2"=>"", "k 1"=>"v\\"x"	!SQLFeatureNotSupportedException|0A000	InputStream:226b32223d3e22222c20226b2031223d3e22765c227822	InputStream:226b32223d3e22222c20226b2031223d3e22765c227822	Reader:"k2"=>"", "k 1"=>"v\\"x"	!PSQLException|22023
+array-001	*	*	String:{}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7d	InputStream:7b7d	Reader:{}	!PSQLException|22023
+array-002	*	*	String:{1,2,3}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c322c337d	InputStream:7b312c322c337d	Reader:{1,2,3}	!PSQLException|22023
+array-003	*	*	String:{1,NULL,3}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c4e554c4c2c337d	InputStream:7b312c4e554c4c2c337d	Reader:{1,NULL,3}	!PSQLException|22023
+array-004	*	*	String:{{1,2},{3,4}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b312c327d2c7b332c347d7d	InputStream:7b7b312c327d2c7b332c347d7d	Reader:{{1,2},{3,4}}	!PSQLException|22023
+array-005	*	*	String:[0:2]={1,2,3}	!SQLFeatureNotSupportedException|0A000	InputStream:5b303a325d3d7b312c322c337d	InputStream:5b303a325d3d7b312c322c337d	Reader:[0:2]={1,2,3}	!PSQLException|22023
+array-006	*	*	String:{{{1}}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b7b317d7d7d	InputStream:7b7b7b317d7d7d	Reader:{{{1}}}	!PSQLException|22023
+array-007	*	*	String:[2:3][0:1]={{1,2},{3,4}}	!SQLFeatureNotSupportedException|0A000	InputStream:5b323a335d5b303a315d3d7b7b312c327d2c7b332c347d7d	InputStream:5b323a335d5b303a315d3d7b7b312c327d2c7b332c347d7d	Reader:[2:3][0:1]={{1,2},{3,4}}	!PSQLException|22023
+array-008	*	*	String:{NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b4e554c4c7d	InputStream:7b4e554c4c7d	Reader:{NULL}	!PSQLException|22023
+array-009	*	*	String:{{1,NULL},{NULL,4}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b312c4e554c4c7d2c7b4e554c4c2c347d7d	InputStream:7b7b312c4e554c4c7d2c7b4e554c4c2c347d7d	Reader:{{1,NULL},{NULL,4}}	!PSQLException|22023
+array-010	*	*	String:[-1:0]={5,6}	!SQLFeatureNotSupportedException|0A000	InputStream:5b2d313a305d3d7b352c367d	InputStream:5b2d313a305d3d7b352c367d	Reader:[-1:0]={5,6}	!PSQLException|22023
+array-011	*	*	String:{}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7d	InputStream:7b7d	Reader:{}	!PSQLException|22023
+array-012	*	*	String:{a,b}	!SQLFeatureNotSupportedException|0A000	InputStream:7b612c627d	InputStream:7b612c627d	Reader:{a,b}	!PSQLException|22023
+array-013	*	*	String:{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22612062222c22632c64222c22655c2266222c22675c5c68222c4e554c4c2c224e554c4c222c22227d	InputStream:7b22612062222c22632c64222c22655c2266222c22675c5c68222c4e554c4c2c224e554c4c222c22227d	Reader:{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}	!PSQLException|22023
+array-014	*	*	String:{{a,b},{c,d}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b612c627d2c7b632c647d7d	InputStream:7b7b612c627d2c7b632c647d7d	Reader:{{a,b},{c,d}}	!PSQLException|22023
+array-015	*	*	String:{😀}	!SQLFeatureNotSupportedException|0A000	InputStream:7b3f7d	InputStream:7bf09f98807d	Reader:{😀}	!PSQLException|22023
+array-016	*	*	String:{"{x}",a'b}	!SQLFeatureNotSupportedException|0A000	InputStream:7b227b787d222c6127627d	InputStream:7b227b787d222c6127627d	Reader:{"{x}",a'b}	!PSQLException|22023
+array-017	*	*	String:{1,2}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c327d	InputStream:7b312c327d	Reader:{1,2}	!PSQLException|22023
+array-018	*	*	String:{t,f}	!SQLFeatureNotSupportedException|0A000	InputStream:7b742c667d	InputStream:7b742c667d	Reader:{t,f}	!PSQLException|22023
+array-019	*	*	String:{" a "}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22206120227d	InputStream:7b22206120227d	Reader:{" a "}	!PSQLException|22023
+array-020	*	*	String:{"a\nb"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22610a62227d	InputStream:7b22610a62227d	Reader:{"a\nb"}	!PSQLException|22023
+array-021	*	*	String:{a,b}	!SQLFeatureNotSupportedException|0A000	InputStream:7b612c627d	InputStream:7b612c627d	Reader:{a,b}	!PSQLException|22023
+array-022	*	*	String:{ab,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b61622c4e554c4c7d	InputStream:7b61622c4e554c4c7d	Reader:{ab,NULL}	!PSQLException|22023
+array-023	*	*	String:{"ab ","cd "}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22616220222c22636420227d	InputStream:7b22616220222c22636420227d	Reader:{"ab ","cd "}	!PSQLException|22023
+array-024	*	*	String:{ab}	!SQLFeatureNotSupportedException|0A000	InputStream:7b61627d	InputStream:7b61627d	Reader:{ab}	!PSQLException|22023
+array-025	*	*	String:{pg_class,x}	!SQLFeatureNotSupportedException|0A000	InputStream:7b70675f636c6173732c787d	InputStream:7b70675f636c6173732c787d	Reader:{pg_class,x}	!PSQLException|22023
+array-026	*	*	String:{a,b}	!SQLFeatureNotSupportedException|0A000	InputStream:7b612c627d	InputStream:7b612c627d	Reader:{a,b}	!PSQLException|22023
+array-027	*	*	String:{t,f,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b742c662c4e554c4c7d	InputStream:7b742c662c4e554c4c7d	Reader:{t,f,NULL}	!PSQLException|22023
+array-028	*	*	String:{}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7d	InputStream:7b7d	Reader:{}	!PSQLException|22023
+array-029	*	*	String:{{t},{f}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b747d2c7b667d7d	InputStream:7b7b747d2c7b667d7d	Reader:{{t},{f}}	!PSQLException|22023
+array-030	*	*	String:{1,-1,32767}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c2d312c33323736377d	InputStream:7b312c2d312c33323736377d	Reader:{1,-1,32767}	!PSQLException|22023
+array-031	*	*	String:{NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b4e554c4c7d	InputStream:7b4e554c4c7d	Reader:{NULL}	!PSQLException|22023
+array-032	*	*	String:{9223372036854775807,-1,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b393232333337323033363835343737353830372c2d312c4e554c4c7d	InputStream:7b393232333337323033363835343737353830372c2d312c4e554c4c7d	Reader:{9223372036854775807,-1,NULL}	!PSQLException|22023
+array-033	*	*	String:{1,4294967295}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c343239343936373239357d	InputStream:7b312c343239343936373239357d	Reader:{1,4294967295}	!PSQLException|22023
+array-034	*	*	String:{1.5,NaN,Infinity,-Infinity,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312e352c4e614e2c496e66696e6974792c2d496e66696e6974792c4e554c4c7d	InputStream:7b312e352c4e614e2c496e66696e6974792c2d496e66696e6974792c4e554c4c7d	Reader:{1.5,NaN,Infinity,-Infinity,NULL}	!PSQLException|22023
+array-035	*	*	String:{1.5,NaN,-0,1e+300}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312e352c4e614e2c2d302c31652b3330307d	InputStream:7b312e352c4e614e2c2d302c31652b3330307d	Reader:{1.5,NaN,-0,1e+300}	!PSQLException|22023
+array-036	*	*	String:{{1,2},{3,4}}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7b312c327d2c7b332c347d7d	InputStream:7b7b312c327d2c7b332c347d7d	Reader:{{1,2},{3,4}}	!PSQLException|22023
+array-037	*	*	String:{1.50,NaN,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312e35302c4e614e2c4e554c4c7d	InputStream:7b312e35302c4e614e2c4e554c4c7d	Reader:{1.50,NaN,NULL}	!PSQLException|22023
+array-038	*	*	String:{Infinity,-Infinity}	!SQLFeatureNotSupportedException|0A000	InputStream:7b496e66696e6974792c2d496e66696e6974797d	InputStream:7b496e66696e6974792c2d496e66696e6974797d	Reader:{Infinity,-Infinity}	!PSQLException|22023
+array-039	*	*	String:{1,2}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c327d	InputStream:7b312c327d	Reader:{1,2}	!PSQLException|22023
+array-040	*	*	String:{1.50}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312e35307d	InputStream:7b312e35307d	Reader:{1.50}	!PSQLException|22023
+array-041	*	*	String:{$1.00,-$2.50}	!SQLFeatureNotSupportedException|0A000	InputStream:7b24312e30302c2d24322e35307d	InputStream:7b24312e30302c2d24322e35307d	Reader:{$1.00,-$2.50}	!PSQLException|22023
+array-042	*	*	String:{"$1,234.00"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2224312c3233342e3030227d	InputStream:7b2224312c3233342e3030227d	Reader:{"$1,234.00"}	!PSQLException|22023
+array-043	*	*	String:{"\\\\x00ff","\\\\x",NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b225c5c7830306666222c225c5c78222c4e554c4c7d	InputStream:7b225c5c7830306666222c225c5c78222c4e554c4c7d	Reader:{"\\\\x00ff","\\\\x",NULL}	!PSQLException|22023
+array-044	*	*	String:{2020-01-02,infinity,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b323032302d30312d30322c696e66696e6974792c4e554c4c7d	InputStream:7b323032302d30312d30322c696e66696e6974792c4e554c4c7d	Reader:{2020-01-02,infinity,NULL}	!PSQLException|22023
+array-045	*	*	String:{"0044-03-15 BC"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22303034342d30332d3135204243227d	InputStream:7b22303034342d30332d3135204243227d	Reader:{"0044-03-15 BC"}	!PSQLException|22023
+array-046	*	*	String:{10:11:12,23:59:59.999999}	!SQLFeatureNotSupportedException|0A000	InputStream:7b31303a31313a31322c32333a35393a35392e3939393939397d	InputStream:7b31303a31313a31322c32333a35393a35392e3939393939397d	Reader:{10:11:12,23:59:59.999999}	!PSQLException|22023
+array-047	*	*	String:{10:11:12+02,00:00:00-08}	!SQLFeatureNotSupportedException|0A000	InputStream:7b31303a31313a31322b30322c30303a30303a30302d30387d	InputStream:7b31303a31313a31322b30322c30303a30303a30302d30387d	Reader:{10:11:12+02,00:00:00-08}	!PSQLException|22023
+array-048	*	*	String:{"2020-01-02 10:11:12",infinity,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22323032302d30312d30322031303a31313a3132222c696e66696e6974792c4e554c4c7d	InputStream:7b22323032302d30312d30322031303a31313a3132222c696e66696e6974792c4e554c4c7d	Reader:{"2020-01-02 10:11:12",infinity,NULL}	!PSQLException|22023
+array-049	*	UTC	String:{"2020-01-02 10:11:12+00","2020-06-15 12:00:00+00"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22323032302d30312d30322031303a31313a31322b3030222c22323032302d30362d31352031323a30303a30302b3030227d	InputStream:7b22323032302d30312d30322031303a31313a31322b3030222c22323032302d30362d31352031323a30303a30302b3030227d	Reader:{"2020-01-02 10:11:12+00","2020-06-15 12:00:00+00"}	!PSQLException|22023
+array-049	*	America/New_York	String:{"2020-01-02 05:11:12-05","2020-06-15 08:00:00-04"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22323032302d30312d30322030353a31313a31322d3035222c22323032302d30362d31352030383a30303a30302d3034227d	InputStream:7b22323032302d30312d30322030353a31313a31322d3035222c22323032302d30362d31352030383a30303a30302d3034227d	Reader:{"2020-01-02 05:11:12-05","2020-06-15 08:00:00-04"}	!PSQLException|22023
+array-049	*	Asia/Kolkata	String:{"2020-01-02 15:41:12+05:30","2020-06-15 17:30:00+05:30"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b22323032302d30312d30322031353a34313a31322b30353a3330222c22323032302d30362d31352031373a33303a30302b30353a3330227d	InputStream:7b22323032302d30312d30322031353a34313a31322b30353a3330222c22323032302d30362d31352031373a33303a30302b30353a3330227d	Reader:{"2020-01-02 15:41:12+05:30","2020-06-15 17:30:00+05:30"}	!PSQLException|22023
+array-050	*	*	String:{"1 day",01:00:00}	!SQLFeatureNotSupportedException|0A000	InputStream:7b223120646179222c30313a30303a30307d	InputStream:7b223120646179222c30313a30303a30307d	Reader:{"1 day",01:00:00}	!PSQLException|22023
+array-051	*	*	String:{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b61306565626339392d396330622d346566382d626236642d3662623962643338306131312c4e554c4c7d	InputStream:7b61306565626339392d396330622d346566382d626236642d3662623962643338306131312c4e554c4c7d	Reader:{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}	!PSQLException|22023
+array-052	*	*	String:{"{\\"a\\":1}","[1,2]",NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b227b5c22615c223a317d222c225b312c325d222c4e554c4c7d	InputStream:7b227b5c22615c223a317d222c225b312c325d222c4e554c4c7d	Reader:{"{\\"a\\":1}","[1,2]",NULL}	!PSQLException|22023
+array-053	*	*	String:{"{\\"a\\": 1}"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b227b5c22615c223a20317d227d	InputStream:7b227b5c22615c223a20317d227d	Reader:{"{\\"a\\": 1}"}	!PSQLException|22023
+array-054	*	*	String:{<a/>}	!SQLFeatureNotSupportedException|0A000	InputStream:7b3c612f3e7d	InputStream:7b3c612f3e7d	Reader:{<a/>}	!PSQLException|22023
+array-055	*	*	String:{1,0}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c307d	InputStream:7b312c307d	Reader:{1,0}	!PSQLException|22023
+array-056	*	*	String:{10101010}	!SQLFeatureNotSupportedException|0A000	InputStream:7b31303130313031307d	InputStream:7b31303130313031307d	Reader:{10101010}	!PSQLException|22023
+array-057	*	*	String:{101,1}	!SQLFeatureNotSupportedException|0A000	InputStream:7b3130312c317d	InputStream:7b3130312c317d	Reader:{101,1}	!PSQLException|22023
+array-058	*	*	String:{192.168.1.1,::1}	!SQLFeatureNotSupportedException|0A000	InputStream:7b3139322e3136382e312e312c3a3a317d	InputStream:7b3139322e3136382e312e312c3a3a317d	Reader:{192.168.1.1,::1}	!PSQLException|22023
+array-059	*	*	String:{10.0.0.0/8}	!SQLFeatureNotSupportedException|0A000	InputStream:7b31302e302e302e302f387d	InputStream:7b31302e302e302e302f387d	Reader:{10.0.0.0/8}	!PSQLException|22023
+array-060	*	*	String:{08:00:2b:01:02:03}	!SQLFeatureNotSupportedException|0A000	InputStream:7b30383a30303a32623a30313a30323a30337d	InputStream:7b30383a30303a32623a30313a30323a30337d	Reader:{08:00:2b:01:02:03}	!PSQLException|22023
+array-061	*	*	String:{"(1,2)","(3,4)"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2228312c3229222c2228332c3429227d	InputStream:7b2228312c3229222c2228332c3429227d	Reader:{"(1,2)","(3,4)"}	!PSQLException|22023
+array-062	*	*	String:{}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7d	InputStream:7b7d	Reader:{}	!PSQLException|22023
+array-063	*	*	String:{(3,4),(1,2);(7,8),(5,6)}	!SQLFeatureNotSupportedException|0A000	InputStream:7b28332c34292c28312c32293b28372c38292c28352c36297d	InputStream:7b28332c34292c28312c32293b28372c38292c28352c36297d	Reader:{(3,4),(1,2);(7,8),(5,6)}	!PSQLException|22023
+array-064	*	*	String:{"<(1,2),3>"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b223c28312c32292c333e227d	InputStream:7b223c28312c32292c333e227d	Reader:{"<(1,2),3>"}	!PSQLException|22023
+array-065	*	*	String:{"{1,2,3}"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b227b312c322c337d227d	InputStream:7b227b312c322c337d227d	Reader:{"{1,2,3}"}	!PSQLException|22023
+array-066	*	*	String:{"[(1,2),(3,4)]"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b225b28312c32292c28332c34295d227d	InputStream:7b225b28312c32292c28332c34295d227d	Reader:{"[(1,2),(3,4)]"}	!PSQLException|22023
+array-067	*	*	String:{"((1,2),(3,4))"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b222828312c32292c28332c342929227d	InputStream:7b222828312c32292c28332c342929227d	Reader:{"((1,2),(3,4))"}	!PSQLException|22023
+array-068	*	*	String:{"((1,2),(3,4))"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b222828312c32292c28332c342929227d	InputStream:7b222828312c32292c28332c342929227d	Reader:{"((1,2),(3,4))"}	!PSQLException|22023
+array-069	*	*	String:{ok,sad,NULL}	!SQLFeatureNotSupportedException|0A000	InputStream:7b6f6b2c7361642c4e554c4c7d	InputStream:7b6f6b2c7361642c4e554c4c7d	Reader:{ok,sad,NULL}	!PSQLException|22023
+array-070	*	*	String:{red}	!SQLFeatureNotSupportedException|0A000	InputStream:7b7265647d	InputStream:7b7265647d	Reader:{red}	!PSQLException|22023
+array-071	*	*	String:{"(1,a)"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2228312c6129227d	InputStream:7b2228312c6129227d	Reader:{"(1,a)"}	!PSQLException|22023
+array-072	*	*	String:{"[1,5)"}	!SQLFeatureNotSupportedException|0A000	InputStream:7b225b312c3529227d	InputStream:7b225b312c3529227d	Reader:{"[1,5)"}	!PSQLException|22023
+array-073	*	*	String:{"\\"a\\"=>\\"1\\""}	!SQLFeatureNotSupportedException|0A000	InputStream:7b225c22615c223d3e5c22315c22227d	InputStream:7b225c22615c223d3e5c22315c22227d	Reader:{"\\"a\\"=>\\"1\\""}	!PSQLException|22023
+array-074	*	*	String:{'a'}	!SQLFeatureNotSupportedException|0A000	InputStream:7b2761277d	InputStream:7b2761277d	Reader:{'a'}	!PSQLException|22023
+array-075	*	*	String:{c1}	!SQLFeatureNotSupportedException|0A000	InputStream:7b63317d	InputStream:7b63317d	Reader:{c1}	!PSQLException|22023
+array-076	*	*	String:{1,2}	!SQLFeatureNotSupportedException|0A000	InputStream:7b312c327d	InputStream:7b312c327d	Reader:{1,2}	!PSQLException|22023
+array-077	*	*	String:{pg_class}	!SQLFeatureNotSupportedException|0A000	InputStream:7b70675f636c6173737d	InputStream:7b70675f636c6173737d	Reader:{pg_class}	!PSQLException|22023
+bool-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+int2-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+int4-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+int8-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+oid-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+float4-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+float8-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+numeric-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+numeric-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+numeric-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+money-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+text-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+varchar-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+varchar-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+bpchar-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+bpchar-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+bpchar-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+name-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+char-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+bytea-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+date-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+time-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+time-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+time-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timetz-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timetz-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timestamp-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timestamp-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timestamp-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timestamptz-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+timestamptz-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+interval-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+interval-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+interval-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+uuid-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+json-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+jsonb-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+xml-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+bit-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+bit-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+bit-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+varbit-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+varbit-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+inet-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+cidr-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+macaddr-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+macaddr8-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+point-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+box-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+circle-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+line-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+lseg-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+path-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+polygon-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+tsvector-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+tsquery-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+refcursor-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-004	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-005	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-006	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-007	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+enum-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+enum-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+enum-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true
+composite-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+domain-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+hstore-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-001	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-002	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-003	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-004	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-005	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-006	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-007	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-008	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-009	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-010	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-011	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-012	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-013	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-014	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-015	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-016	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-017	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-018	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-019	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-020	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-021	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-022	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-023	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-024	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-025	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-026	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-027	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-028	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-029	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-030	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-031	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-032	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-033	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-034	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-035	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-036	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-037	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-038	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-039	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-040	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-041	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-042	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-043	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-044	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-045	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-046	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-047	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-048	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-049	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+array-null-050	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	!PSQLException|22023
+other-null-008	*	*	null wasNull=true	!SQLFeatureNotSupportedException|0A000	null wasNull=true	null wasNull=true	null wasNull=true	null wasNull=true

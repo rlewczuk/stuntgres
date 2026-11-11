@@ -1,0 +1,681 @@
+#id	family	type	oid	typmod	sql	text(UTC)	text(America/New_York)	text(Asia/Kolkata)
+bool-001	bool	bool	16	-1	't'::bool	t	t	t
+bool-002	bool	bool	16	-1	'f'::bool	f	f	f
+int2-001	int2	int2	21	-1	'0'::int2	0	0	0
+int2-002	int2	int2	21	-1	'1'::int2	1	1	1
+int2-003	int2	int2	21	-1	'-1'::int2	-1	-1	-1
+int2-004	int2	int2	21	-1	'32767'::int2	32767	32767	32767
+int2-005	int2	int2	21	-1	'-32768'::int2	-32768	-32768	-32768
+int2-006	int2	int2	21	-1	'127'::int2	127	127	127
+int2-007	int2	int2	21	-1	'128'::int2	128	128	128
+int2-008	int2	int2	21	-1	'-129'::int2	-129	-129	-129
+int2-009	int2	int2	21	-1	'255'::int2	255	255	255
+int4-001	int4	int4	23	-1	'0'::int4	0	0	0
+int4-002	int4	int4	23	-1	'1'::int4	1	1	1
+int4-003	int4	int4	23	-1	'-1'::int4	-1	-1	-1
+int4-004	int4	int4	23	-1	'2147483647'::int4	2147483647	2147483647	2147483647
+int4-005	int4	int4	23	-1	'-2147483648'::int4	-2147483648	-2147483648	-2147483648
+int4-006	int4	int4	23	-1	'32767'::int4	32767	32767	32767
+int4-007	int4	int4	23	-1	'32768'::int4	32768	32768	32768
+int4-008	int4	int4	23	-1	'-32769'::int4	-32769	-32769	-32769
+int4-009	int4	int4	23	-1	'127'::int4	127	127	127
+int4-010	int4	int4	23	-1	'128'::int4	128	128	128
+int4-011	int4	int4	23	-1	'65'::int4	65	65	65
+int8-001	int8	int8	20	-1	'0'::int8	0	0	0
+int8-002	int8	int8	20	-1	'1'::int8	1	1	1
+int8-003	int8	int8	20	-1	'-1'::int8	-1	-1	-1
+int8-004	int8	int8	20	-1	'9223372036854775807'::int8	9223372036854775807	9223372036854775807	9223372036854775807
+int8-005	int8	int8	20	-1	'-9223372036854775808'::int8	-9223372036854775808	-9223372036854775808	-9223372036854775808
+int8-006	int8	int8	20	-1	'2147483647'::int8	2147483647	2147483647	2147483647
+int8-007	int8	int8	20	-1	'2147483648'::int8	2147483648	2147483648	2147483648
+int8-008	int8	int8	20	-1	'-2147483649'::int8	-2147483649	-2147483649	-2147483649
+int8-009	int8	int8	20	-1	'9007199254740993'::int8	9007199254740993	9007199254740993	9007199254740993
+int8-010	int8	int8	20	-1	'128'::int8	128	128	128
+oid-001	oid	oid	26	-1	'0'::oid	0	0	0
+oid-002	oid	oid	26	-1	'1'::oid	1	1	1
+oid-003	oid	oid	26	-1	'2147483647'::oid	2147483647	2147483647	2147483647
+oid-004	oid	oid	26	-1	'2147483648'::oid	2147483648	2147483648	2147483648
+oid-005	oid	oid	26	-1	'4294967295'::oid	4294967295	4294967295	4294967295
+float4-001	float4	float4	700	-1	'0'::float4	0	0	0
+float4-002	float4	float4	700	-1	'-0'::float4	-0	-0	-0
+float4-003	float4	float4	700	-1	'1'::float4	1	1	1
+float4-004	float4	float4	700	-1	'-1'::float4	-1	-1	-1
+float4-005	float4	float4	700	-1	'1.5'::float4	1.5	1.5	1.5
+float4-006	float4	float4	700	-1	'0.1'::float4	0.1	0.1	0.1
+float4-007	float4	float4	700	-1	'3.4028235e38'::float4	3.4028235e+38	3.4028235e+38	3.4028235e+38
+float4-008	float4	float4	700	-1	'1e-45'::float4	1e-45	1e-45	1e-45
+float4-009	float4	float4	700	-1	'NaN'::float4	NaN	NaN	NaN
+float4-010	float4	float4	700	-1	'Infinity'::float4	Infinity	Infinity	Infinity
+float4-011	float4	float4	700	-1	'-Infinity'::float4	-Infinity	-Infinity	-Infinity
+float4-012	float4	float4	700	-1	'16777217'::float4	1.6777216e+07	1.6777216e+07	1.6777216e+07
+float4-013	float4	float4	700	-1	'1e10'::float4	1e+10	1e+10	1e+10
+float4-014	float4	float4	700	-1	'123456.79'::float4	123456.79	123456.79	123456.79
+float4-015	float4	float4	700	-1	'2.5'::float4	2.5	2.5	2.5
+float4-016	float4	float4	700	-1	'0.5'::float4	0.5	0.5	0.5
+float4-017	float4	float4	700	-1	'-2.5'::float4	-2.5	-2.5	-2.5
+float4-018	float4	float4	700	-1	'1e-5'::float4	1e-05	1e-05	1e-05
+float4-019	float4	float4	700	-1	'128'::float4	128	128	128
+float4-020	float4	float4	700	-1	'3e9'::float4	3e+09	3e+09	3e+09
+float8-001	float8	float8	701	-1	'0'::float8	0	0	0
+float8-002	float8	float8	701	-1	'-0'::float8	-0	-0	-0
+float8-003	float8	float8	701	-1	'1'::float8	1	1	1
+float8-004	float8	float8	701	-1	'-1.5'::float8	-1.5	-1.5	-1.5
+float8-005	float8	float8	701	-1	'0.1'::float8	0.1	0.1	0.1
+float8-006	float8	float8	701	-1	'1.7976931348623157e308'::float8	1.7976931348623157e+308	1.7976931348623157e+308	1.7976931348623157e+308
+float8-007	float8	float8	701	-1	'4.9e-324'::float8	5e-324	5e-324	5e-324
+float8-008	float8	float8	701	-1	'NaN'::float8	NaN	NaN	NaN
+float8-009	float8	float8	701	-1	'Infinity'::float8	Infinity	Infinity	Infinity
+float8-010	float8	float8	701	-1	'-Infinity'::float8	-Infinity	-Infinity	-Infinity
+float8-011	float8	float8	701	-1	'1e15'::float8	1e+15	1e+15	1e+15
+float8-012	float8	float8	701	-1	'1e16'::float8	1e+16	1e+16	1e+16
+float8-013	float8	float8	701	-1	'1e21'::float8	1e+21	1e+21	1e+21
+float8-014	float8	float8	701	-1	'123456789.12345679'::float8	123456789.12345679	123456789.12345679	123456789.12345679
+float8-015	float8	float8	701	-1	'1e-5'::float8	1e-05	1e-05	1e-05
+float8-016	float8	float8	701	-1	'2.5'::float8	2.5	2.5	2.5
+float8-017	float8	float8	701	-1	'0.5'::float8	0.5	0.5	0.5
+float8-018	float8	float8	701	-1	'9007199254740993'::float8	9.007199254740992e+15	9.007199254740992e+15	9.007199254740992e+15
+float8-019	float8	float8	701	-1	'128'::float8	128	128	128
+float8-020	float8	float8	701	-1	'3e9'::float8	3000000000	3000000000	3000000000
+float8-021	float8	float8	701	-1	'1e19'::float8	1e+19	1e+19	1e+19
+float8-022	float8	float8	701	-1	'-0.9'::float8	-0.9	-0.9	-0.9
+float8-023	float8	float8	701	-1	'0.9'::float8	0.9	0.9	0.9
+numeric-001	numeric	numeric	1700	-1	'0'::numeric	0	0	0
+numeric-002	numeric	numeric	1700	-1	'1'::numeric	1	1	1
+numeric-003	numeric	numeric	1700	-1	'-1'::numeric	-1	-1	-1
+numeric-004	numeric	numeric	1700	-1	'0.0'::numeric	0.0	0.0	0.0
+numeric-005	numeric	numeric	1700	-1	'1.50'::numeric	1.50	1.50	1.50
+numeric-006	numeric	numeric	1700	-1	'123456789012345678901234567890.123456789'::numeric	123456789012345678901234567890.123456789	123456789012345678901234567890.123456789	123456789012345678901234567890.123456789
+numeric-007	numeric	numeric	1700	-1	'-0.000001'::numeric	-0.000001	-0.000001	-0.000001
+numeric-008	numeric	numeric	1700	-1	'NaN'::numeric	NaN	NaN	NaN
+numeric-009	numeric	numeric	1700	-1	'Infinity'::numeric	Infinity	Infinity	Infinity
+numeric-010	numeric	numeric	1700	-1	'-Infinity'::numeric	-Infinity	-Infinity	-Infinity
+numeric-011	numeric	numeric	1700	-1	'1e100'::numeric	10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+numeric-012	numeric	numeric	1700	-1	'0.1'::numeric	0.1	0.1	0.1
+numeric-013	numeric	numeric	1700	-1	'2.5'::numeric	2.5	2.5	2.5
+numeric-014	numeric	numeric	1700	-1	'1.5'::numeric	1.5	1.5	1.5
+numeric-015	numeric	numeric	1700	-1	'0.5'::numeric	0.5	0.5	0.5
+numeric-016	numeric	numeric	1700	-1	'-2.5'::numeric	-2.5	-2.5	-2.5
+numeric-017	numeric	numeric	1700	-1	'127'::numeric	127	127	127
+numeric-018	numeric	numeric	1700	-1	'128'::numeric	128	128	128
+numeric-019	numeric	numeric	1700	-1	'32768'::numeric	32768	32768	32768
+numeric-020	numeric	numeric	1700	-1	'2147483648'::numeric	2147483648	2147483648	2147483648
+numeric-021	numeric	numeric	1700	-1	'9223372036854775807'::numeric	9223372036854775807	9223372036854775807	9223372036854775807
+numeric-022	numeric	numeric	1700	-1	'9223372036854775808'::numeric	9223372036854775808	9223372036854775808	9223372036854775808
+numeric-023	numeric	numeric	1700	-1	'1e-20'::numeric	0.00000000000000000001	0.00000000000000000001	0.00000000000000000001
+numeric-024	numeric	numeric	1700	-1	'0.9'::numeric	0.9	0.9	0.9
+numeric-025	numeric	numeric	1700	-1	'-0.9'::numeric	-0.9	-0.9	-0.9
+numeric-026	numeric	numeric	1700	-1	'1.0'::numeric	1.0	1.0	1.0
+numeric-027	numeric	numeric	1700	-1	'0.00'::numeric	0.00	0.00	0.00
+numeric-028	numeric	numeric	1700	-1	'100'::numeric	100	100	100
+numeric-029	numeric	numeric	1700	-1	'1e5'::numeric	100000	100000	100000
+numeric-030	numeric	numeric	1700	-1	'3.99'::numeric	3.99	3.99	3.99
+numeric-031	numeric	numeric(10,2)	1700	655366	'12345.60'::numeric(10,2)	12345.60	12345.60	12345.60
+numeric-032	numeric	numeric(10,2)	1700	655366	'0'::numeric(10,2)	0.00	0.00	0.00
+numeric-033	numeric	numeric(10,2)	1700	655366	'99999999.99'::numeric(10,2)	99999999.99	99999999.99	99999999.99
+numeric-034	numeric	numeric(10,2)	1700	655366	'-0.01'::numeric(10,2)	-0.01	-0.01	-0.01
+numeric-035	numeric	numeric(10,2)	1700	655366	'1'::numeric(10,2)	1.00	1.00	1.00
+numeric-036	numeric	numeric(5,0)	1700	327684	'42'::numeric(5,0)	42	42	42
+money-001	money	money	790	-1	'0'::money	$0.00	$0.00	$0.00
+money-002	money	money	790	-1	'12.34'::money	$12.34	$12.34	$12.34
+money-003	money	money	790	-1	'-12.34'::money	-$12.34	-$12.34	-$12.34
+money-004	money	money	790	-1	'1234567.89'::money	$1,234,567.89	$1,234,567.89	$1,234,567.89
+money-005	money	money	790	-1	'92233720368547758.07'::money	$92,233,720,368,547,758.07	$92,233,720,368,547,758.07	$92,233,720,368,547,758.07
+money-006	money	money	790	-1	'-92233720368547758.08'::money	-$92,233,720,368,547,758.08	-$92,233,720,368,547,758.08	-$92,233,720,368,547,758.08
+money-007	money	money	790	-1	'1'::money	$1.00	$1.00	$1.00
+money-008	money	money	790	-1	'0.5'::money	$0.50	$0.50	$0.50
+money-009	money	money	790	-1	'1000'::money	$1,000.00	$1,000.00	$1,000.00
+text-001	text	text	25	-1	''::text			
+text-002	text	text	25	-1	'a'::text	a	a	a
+text-003	text	text	25	-1	'hello world'::text	hello world	hello world	hello world
+text-004	text	text	25	-1	' padded '::text	 padded 	 padded 	 padded 
+text-005	text	text	25	-1	'😀'::text	😀	😀	😀
+text-006	text	text	25	-1	'ąćę€'::text	ąćę€	ąćę€	ąćę€
+text-007	text	text	25	-1	'true'::text	true	true	true
+text-008	text	text	25	-1	'false'::text	false	false	false
+text-009	text	text	25	-1	't'::text	t	t	t
+text-010	text	text	25	-1	'f'::text	f	f	f
+text-011	text	text	25	-1	'yes'::text	yes	yes	yes
+text-012	text	text	25	-1	'no'::text	no	no	no
+text-013	text	text	25	-1	'on'::text	on	on	on
+text-014	text	text	25	-1	'off'::text	off	off	off
+text-015	text	text	25	-1	'1'::text	1	1	1
+text-016	text	text	25	-1	'0'::text	0	0	0
+text-017	text	text	25	-1	'y'::text	y	y	y
+text-018	text	text	25	-1	'n'::text	n	n	n
+text-019	text	text	25	-1	'TRUE'::text	TRUE	TRUE	TRUE
+text-020	text	text	25	-1	' t '::text	 t 	 t 	 t 
+text-021	text	text	25	-1	'123'::text	123	123	123
+text-022	text	text	25	-1	' 42 '::text	 42 	 42 	 42 
+text-023	text	text	25	-1	'1.5'::text	1.5	1.5	1.5
+text-024	text	text	25	-1	'-1e3'::text	-1e3	-1e3	-1e3
+text-025	text	text	25	-1	'NaN'::text	NaN	NaN	NaN
+text-026	text	text	25	-1	'Infinity'::text	Infinity	Infinity	Infinity
+text-027	text	text	25	-1	'-Infinity'::text	-Infinity	-Infinity	-Infinity
+text-028	text	text	25	-1	'9223372036854775807'::text	9223372036854775807	9223372036854775807	9223372036854775807
+text-029	text	text	25	-1	'9223372036854775808'::text	9223372036854775808	9223372036854775808	9223372036854775808
+text-030	text	text	25	-1	'2147483648'::text	2147483648	2147483648	2147483648
+text-031	text	text	25	-1	'32768'::text	32768	32768	32768
+text-032	text	text	25	-1	'128'::text	128	128	128
+text-033	text	text	25	-1	'127'::text	127	127	127
+text-034	text	text	25	-1	'255'::text	255	255	255
+text-035	text	text	25	-1	'-129'::text	-129	-129	-129
+text-036	text	text	25	-1	'-1'::text	-1	-1	-1
+text-037	text	text	25	-1	'2'::text	2	2	2
+text-038	text	text	25	-1	'1.0'::text	1.0	1.0	1.0
+text-039	text	text	25	-1	'0.0'::text	0.0	0.0	0.0
+text-040	text	text	25	-1	'1e0'::text	1e0	1e0	1e0
+text-041	text	text	25	-1	'3.99'::text	3.99	3.99	3.99
+text-042	text	text	25	-1	'-0.5'::text	-0.5	-0.5	-0.5
+text-043	text	text	25	-1	'1E400'::text	1E400	1E400	1E400
+text-044	text	text	25	-1	'+5'::text	+5	+5	+5
+text-045	text	text	25	-1	'1_000'::text	1_000	1_000	1_000
+text-046	text	text	25	-1	'0x10'::text	0x10	0x10	0x10
+text-047	text	text	25	-1	'1,000'::text	1,000	1,000	1,000
+text-048	text	text	25	-1	'$1.00'::text	$1.00	$1.00	$1.00
+text-049	text	text	25	-1	'($12.34)'::text	($12.34)	($12.34)	($12.34)
+text-050	text	text	25	-1	'-$1,234.50'::text	-$1,234.50	-$1,234.50	-$1,234.50
+text-051	text	text	25	-1	'2020-01-02'::text	2020-01-02	2020-01-02	2020-01-02
+text-052	text	text	25	-1	'10:11:12'::text	10:11:12	10:11:12	10:11:12
+text-053	text	text	25	-1	'2020-01-02 10:11:12.123456'::text	2020-01-02 10:11:12.123456	2020-01-02 10:11:12.123456	2020-01-02 10:11:12.123456
+text-054	text	text	25	-1	'2020-01-02 10:11:12+02'::text	2020-01-02 10:11:12+02	2020-01-02 10:11:12+02	2020-01-02 10:11:12+02
+text-055	text	text	25	-1	'2020-01-02T10:11:12'::text	2020-01-02T10:11:12	2020-01-02T10:11:12	2020-01-02T10:11:12
+text-056	text	text	25	-1	'2020-01-02 10:11:12.5+05:30'::text	2020-01-02 10:11:12.5+05:30	2020-01-02 10:11:12.5+05:30	2020-01-02 10:11:12.5+05:30
+text-057	text	text	25	-1	'0044-03-15 BC'::text	0044-03-15 BC	0044-03-15 BC	0044-03-15 BC
+text-058	text	text	25	-1	'infinity'::text	infinity	infinity	infinity
+text-059	text	text	25	-1	'-infinity'::text	-infinity	-infinity	-infinity
+text-060	text	text	25	-1	'epoch'::text	epoch	epoch	epoch
+text-061	text	text	25	-1	'24:00:00'::text	24:00:00	24:00:00	24:00:00
+text-062	text	text	25	-1	'12:00:00+05:30'::text	12:00:00+05:30	12:00:00+05:30	12:00:00+05:30
+text-063	text	text	25	-1	'2020-01-02 10:11:12 BC'::text	2020-01-02 10:11:12 BC	2020-01-02 10:11:12 BC	2020-01-02 10:11:12 BC
+text-064	text	text	25	-1	'10:11:12.123456789'::text	10:11:12.123456789	10:11:12.123456789	10:11:12.123456789
+text-065	text	text	25	-1	'{1,2}'::text	{1,2}	{1,2}	{1,2}
+text-066	text	text	25	-1	'abc\ndef\ttab\\back'::text	abc\ndef\ttab\\back	abc\ndef\ttab\\back	abc\ndef\ttab\\back
+text-067	text	text	25	-1	'http://example.com/'::text	http://example.com/	http://example.com/	http://example.com/
+text-068	text	text	25	-1	'\\x41'::text	\\x41	\\x41	\\x41
+text-069	text	text	25	-1	'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::text	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+text-070	text	text	25	-1	'A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11'::text	A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11	A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11	A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11
+text-071	text	text	25	-1	'<a>1</a>'::text	<a>1</a>	<a>1</a>	<a>1</a>
+text-072	text	text	25	-1	'192.168.1.1'::text	192.168.1.1	192.168.1.1	192.168.1.1
+text-073	text	text	25	-1	'(1,2)'::text	(1,2)	(1,2)	(1,2)
+text-074	text	text	25	-1	'1 day'::text	1 day	1 day	1 day
+text-075	text	text	25	-1	'null'::text	null	null	null
+text-076	text	text	25	-1	'abc'::text	abc	abc	abc
+text-077	text	text	25	-1	'12abc'::text	12abc	12abc	12abc
+text-078	text	text	25	-1	'1.5e'::text	1.5e	1.5e	1.5e
+text-079	text	text	25	-1	'.5'::text	.5	.5	.5
+text-080	text	text	25	-1	'5.'::text	5.	5.	5.
+text-081	text	text	25	-1	'0.1'::text	0.1	0.1	0.1
+text-082	text	text	25	-1	'1e2'::text	1e2	1e2	1e2
+text-083	text	text	25	-1	'00012'::text	00012	00012	00012
+text-084	text	text	25	-1	'-0'::text	-0	-0	-0
+text-085	text	text	25	-1	'１２'::text	１２	１２	１２
+text-086	text	text	25	-1	'2020-13-45'::text	2020-13-45	2020-13-45	2020-13-45
+text-087	text	text	25	-1	'25:61:61'::text	25:61:61	25:61:61	25:61:61
+text-088	text	text	25	-1	'1 2'::text	1 2	1 2	1 2
+text-089	text	text	25	-1	'--1'::text	--1	--1	--1
+text-090	text	text	25	-1	'9223372036854775807.5'::text	9223372036854775807.5	9223372036854775807.5	9223372036854775807.5
+text-091	text	text	25	-1	'4.9e-324'::text	4.9e-324	4.9e-324	4.9e-324
+text-092	text	text	25	-1	'1e-400'::text	1e-400	1e-400	1e-400
+text-093	text	text	25	-1	'0e0'::text	0e0	0e0	0e0
+text-094	text	text	25	-1	'tRuE'::text	tRuE	tRuE	tRuE
+text-095	text	text	25	-1	'Y'::text	Y	Y	Y
+text-096	text	text	25	-1	'N'::text	N	N	N
+text-097	text	text	25	-1	'ON'::text	ON	ON	ON
+text-098	text	text	25	-1	'OFF'::text	OFF	OFF	OFF
+text-099	text	text	25	-1	'No'::text	No	No	No
+text-100	text	text	25	-1	'oN'::text	oN	oN	oN
+text-101	text	text	25	-1	'2020-01-02 10:11:12.1234567'::text	2020-01-02 10:11:12.1234567	2020-01-02 10:11:12.1234567	2020-01-02 10:11:12.1234567
+text-102	text	text	25	-1	'99999-01-01'::text	99999-01-01	99999-01-01	99999-01-01
+varchar-001	varchar	varchar	1043	-1	'abc'::varchar	abc	abc	abc
+varchar-002	varchar	varchar	1043	-1	''::varchar			
+varchar-003	varchar	varchar	1043	-1	'1'::varchar	1	1	1
+varchar-004	varchar	varchar	1043	-1	't'::varchar	t	t	t
+varchar-005	varchar	varchar	1043	-1	'2020-01-02'::varchar	2020-01-02	2020-01-02	2020-01-02
+varchar-006	varchar	varchar	1043	-1	'12.5'::varchar	12.5	12.5	12.5
+varchar-007	varchar	varchar(10)	1043	14	'abc'::varchar(10)	abc	abc	abc
+varchar-008	varchar	varchar(10)	1043	14	'1'::varchar(10)	1	1	1
+bpchar-001	bpchar	char(5)	1042	9	'ab'::char(5)	ab   	ab   	ab   
+bpchar-002	bpchar	char(5)	1042	9	'1'::char(5)	1    	1    	1    
+bpchar-003	bpchar	char(5)	1042	9	't'::char(5)	t    	t    	t    
+bpchar-004	bpchar	char(5)	1042	9	''::char(5)	     	     	     
+bpchar-005	bpchar	char(5)	1042	9	'12.5'::char(5)	12.5 	12.5 	12.5 
+bpchar-006	bpchar	char(1)	1042	5	'x'::char(1)	x	x	x
+bpchar-007	bpchar	char(1)	1042	5	'1'::char(1)	1	1	1
+bpchar-008	bpchar	char(1)	1042	5	't'::char(1)	t	t	t
+bpchar-009	bpchar	char(1)	1042	5	'f'::char(1)	f	f	f
+bpchar-010	bpchar	char(1)	1042	5	'y'::char(1)	y	y	y
+bpchar-011	bpchar	bpchar	1042	-1	'ab  '::bpchar	ab  	ab  	ab  
+bpchar-012	bpchar	bpchar	1042	-1	'1'::bpchar	1	1	1
+name-001	name	name	19	-1	'pg_class'::name	pg_class	pg_class	pg_class
+name-002	name	name	19	-1	'1'::name	1	1	1
+name-003	name	name	19	-1	't'::name	t	t	t
+char-001	char	"char"	18	-1	'a'::"char"	a	a	a
+char-002	char	"char"	18	-1	'1'::"char"	1	1	1
+char-003	char	"char"	18	-1	't'::"char"	t	t	t
+char-004	char	"char"	18	-1	'0'::"char"	0	0	0
+char-005	char	"char"	18	-1	''::"char"			
+bytea-001	bytea	bytea	17	-1	''::bytea	\\x	\\x	\\x
+bytea-002	bytea	bytea	17	-1	'\\x00'::bytea	\\x00	\\x00	\\x00
+bytea-003	bytea	bytea	17	-1	'\\x616263'::bytea	\\x616263	\\x616263	\\x616263
+bytea-004	bytea	bytea	17	-1	'\\xdeadbeef'::bytea	\\xdeadbeef	\\xdeadbeef	\\xdeadbeef
+bytea-005	bytea	bytea	17	-1	'\\x31'::bytea	\\x31	\\x31	\\x31
+bytea-006	bytea	bytea	17	-1	decode('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff', 'hex')	\\x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff	\\x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff	\\x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+bytea-007	bytea	bytea	17	-1	'\\x74'::bytea	\\x74	\\x74	\\x74
+bytea-008	bytea	bytea	17	-1	'\\x5c78'::bytea	\\x5c78	\\x5c78	\\x5c78
+bytea-009	bytea	bytea	17	-1	'\\xff'::bytea	\\xff	\\xff	\\xff
+date-001	date	date	1082	-1	'2020-01-02'::date	2020-01-02	2020-01-02	2020-01-02
+date-002	date	date	1082	-1	'1970-01-01'::date	1970-01-01	1970-01-01	1970-01-01
+date-003	date	date	1082	-1	'1969-12-31'::date	1969-12-31	1969-12-31	1969-12-31
+date-004	date	date	1082	-1	'0001-01-01'::date	0001-01-01	0001-01-01	0001-01-01
+date-005	date	date	1082	-1	'0044-03-15 BC'::date	0044-03-15 BC	0044-03-15 BC	0044-03-15 BC
+date-006	date	date	1082	-1	'0001-12-31 BC'::date	0001-12-31 BC	0001-12-31 BC	0001-12-31 BC
+date-007	date	date	1082	-1	'4713-01-01 BC'::date	4713-01-01 BC	4713-01-01 BC	4713-01-01 BC
+date-008	date	date	1082	-1	'5874897-12-31'::date	5874897-12-31	5874897-12-31	5874897-12-31
+date-009	date	date	1082	-1	'infinity'::date	infinity	infinity	infinity
+date-010	date	date	1082	-1	'-infinity'::date	-infinity	-infinity	-infinity
+date-011	date	date	1082	-1	'1582-10-04'::date	1582-10-04	1582-10-04	1582-10-04
+date-012	date	date	1082	-1	'1582-10-10'::date	1582-10-10	1582-10-10	1582-10-10
+date-013	date	date	1082	-1	'1582-10-15'::date	1582-10-15	1582-10-15	1582-10-15
+date-014	date	date	1082	-1	'2021-03-28'::date	2021-03-28	2021-03-28	2021-03-28
+date-015	date	date	1082	-1	'2021-10-31'::date	2021-10-31	2021-10-31	2021-10-31
+date-016	date	date	1082	-1	'1900-01-01'::date	1900-01-01	1900-01-01	1900-01-01
+date-017	date	date	1082	-1	'9999-12-31'::date	9999-12-31	9999-12-31	9999-12-31
+date-018	date	date	1082	-1	'10000-01-01'::date	10000-01-01	10000-01-01	10000-01-01
+date-019	date	date	1082	-1	'2000-02-29'::date	2000-02-29	2000-02-29	2000-02-29
+date-020	date	date	1082	-1	'1500-02-28'::date	1500-02-28	1500-02-28	1500-02-28
+date-021	date	date	1082	-1	'0100-03-01'::date	0100-03-01	0100-03-01	0100-03-01
+date-022	date	date	1082	-1	'1883-11-18'::date	1883-11-18	1883-11-18	1883-11-18
+date-023	date	date	1082	-1	'1915-08-04'::date	1915-08-04	1915-08-04	1915-08-04
+time-001	time	time	1083	-1	'00:00:00'::time	00:00:00	00:00:00	00:00:00
+time-002	time	time	1083	-1	'12:34:56'::time	12:34:56	12:34:56	12:34:56
+time-003	time	time	1083	-1	'23:59:59.999999'::time	23:59:59.999999	23:59:59.999999	23:59:59.999999
+time-004	time	time	1083	-1	'24:00:00'::time	24:00:00	24:00:00	24:00:00
+time-005	time	time	1083	-1	'10:11:12.5'::time	10:11:12.5	10:11:12.5	10:11:12.5
+time-006	time	time	1083	-1	'10:11:12.123456'::time	10:11:12.123456	10:11:12.123456	10:11:12.123456
+time-007	time	time	1083	-1	'00:00:00.000001'::time	00:00:00.000001	00:00:00.000001	00:00:00.000001
+time-008	time	time	1083	-1	'02:30:00'::time	02:30:00	02:30:00	02:30:00
+time-009	time	time	1083	-1	'23:59:59.9995'::time	23:59:59.9995	23:59:59.9995	23:59:59.9995
+time-010	time	time(3)	1083	3	'10:11:12.123'::time(3)	10:11:12.123	10:11:12.123	10:11:12.123
+time-011	time	time(0)	1083	0	'10:11:12'::time(0)	10:11:12	10:11:12	10:11:12
+timetz-001	timetz	timetz	1266	-1	'00:00:00+00'::timetz	00:00:00+00	00:00:00+00	00:00:00+00
+timetz-002	timetz	timetz	1266	-1	'12:34:56.789+05:30'::timetz	12:34:56.789+05:30	12:34:56.789+05:30	12:34:56.789+05:30
+timetz-003	timetz	timetz	1266	-1	'23:59:59.999999-08'::timetz	23:59:59.999999-08	23:59:59.999999-08	23:59:59.999999-08
+timetz-004	timetz	timetz	1266	-1	'24:00:00+00'::timetz	24:00:00+00	24:00:00+00	24:00:00+00
+timetz-005	timetz	timetz	1266	-1	'10:11:12+01:02:03'::timetz	10:11:12+01:02:03	10:11:12+01:02:03	10:11:12+01:02:03
+timetz-006	timetz	timetz	1266	-1	'10:11:12-15:59'::timetz	10:11:12-15:59	10:11:12-15:59	10:11:12-15:59
+timetz-007	timetz	timetz	1266	-1	'10:11:12.5+02'::timetz	10:11:12.5+02	10:11:12.5+02	10:11:12.5+02
+timetz-008	timetz	timetz	1266	-1	'02:30:00+01'::timetz	02:30:00+01	02:30:00+01	02:30:00+01
+timetz-009	timetz	timetz	1266	-1	'00:00:00-12'::timetz	00:00:00-12	00:00:00-12	00:00:00-12
+timetz-010	timetz	timetz	1266	-1	'23:59:59+14'::timetz	23:59:59+14	23:59:59+14	23:59:59+14
+timetz-011	timetz	timetz(3)	1266	3	'10:11:12.123+02'::timetz(3)	10:11:12.123+02	10:11:12.123+02	10:11:12.123+02
+timestamp-001	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12'::timestamp	2020-01-02 10:11:12	2020-01-02 10:11:12	2020-01-02 10:11:12
+timestamp-002	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12.123456'::timestamp	2020-01-02 10:11:12.123456	2020-01-02 10:11:12.123456	2020-01-02 10:11:12.123456
+timestamp-003	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12.5'::timestamp	2020-01-02 10:11:12.5	2020-01-02 10:11:12.5	2020-01-02 10:11:12.5
+timestamp-004	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12.000001'::timestamp	2020-01-02 10:11:12.000001	2020-01-02 10:11:12.000001	2020-01-02 10:11:12.000001
+timestamp-005	timestamp	timestamp	1114	-1	'1970-01-01 00:00:00'::timestamp	1970-01-01 00:00:00	1970-01-01 00:00:00	1970-01-01 00:00:00
+timestamp-006	timestamp	timestamp	1114	-1	'1969-12-31 23:59:59.999999'::timestamp	1969-12-31 23:59:59.999999	1969-12-31 23:59:59.999999	1969-12-31 23:59:59.999999
+timestamp-007	timestamp	timestamp	1114	-1	'infinity'::timestamp	infinity	infinity	infinity
+timestamp-008	timestamp	timestamp	1114	-1	'-infinity'::timestamp	-infinity	-infinity	-infinity
+timestamp-009	timestamp	timestamp	1114	-1	'0001-01-01 00:00:00'::timestamp	0001-01-01 00:00:00	0001-01-01 00:00:00	0001-01-01 00:00:00
+timestamp-010	timestamp	timestamp	1114	-1	'0044-03-15 12:00:00 BC'::timestamp	0044-03-15 12:00:00 BC	0044-03-15 12:00:00 BC	0044-03-15 12:00:00 BC
+timestamp-011	timestamp	timestamp	1114	-1	'4713-01-01 00:00:00 BC'::timestamp	4713-01-01 00:00:00 BC	4713-01-01 00:00:00 BC	4713-01-01 00:00:00 BC
+timestamp-012	timestamp	timestamp	1114	-1	'294276-12-31 23:59:59.999999'::timestamp	294276-12-31 23:59:59.999999	294276-12-31 23:59:59.999999	294276-12-31 23:59:59.999999
+timestamp-013	timestamp	timestamp	1114	-1	'2021-03-28 02:30:00'::timestamp	2021-03-28 02:30:00	2021-03-28 02:30:00	2021-03-28 02:30:00
+timestamp-014	timestamp	timestamp	1114	-1	'2021-10-31 02:30:00'::timestamp	2021-10-31 02:30:00	2021-10-31 02:30:00	2021-10-31 02:30:00
+timestamp-015	timestamp	timestamp	1114	-1	'2021-03-14 02:30:00'::timestamp	2021-03-14 02:30:00	2021-03-14 02:30:00	2021-03-14 02:30:00
+timestamp-016	timestamp	timestamp	1114	-1	'2021-11-07 01:30:00'::timestamp	2021-11-07 01:30:00	2021-11-07 01:30:00	2021-11-07 01:30:00
+timestamp-017	timestamp	timestamp	1114	-1	'1582-10-10 00:00:00'::timestamp	1582-10-10 00:00:00	1582-10-10 00:00:00	1582-10-10 00:00:00
+timestamp-018	timestamp	timestamp	1114	-1	'1582-10-04 23:59:59'::timestamp	1582-10-04 23:59:59	1582-10-04 23:59:59	1582-10-04 23:59:59
+timestamp-019	timestamp	timestamp	1114	-1	'1582-10-15 00:00:00'::timestamp	1582-10-15 00:00:00	1582-10-15 00:00:00	1582-10-15 00:00:00
+timestamp-020	timestamp	timestamp	1114	-1	'1900-01-01 00:00:00'::timestamp	1900-01-01 00:00:00	1900-01-01 00:00:00	1900-01-01 00:00:00
+timestamp-021	timestamp	timestamp	1114	-1	'9999-12-31 23:59:59'::timestamp	9999-12-31 23:59:59	9999-12-31 23:59:59	9999-12-31 23:59:59
+timestamp-022	timestamp	timestamp	1114	-1	'10000-01-01 00:00:00'::timestamp	10000-01-01 00:00:00	10000-01-01 00:00:00	10000-01-01 00:00:00
+timestamp-023	timestamp	timestamp	1114	-1	'2020-06-15 12:00:00'::timestamp	2020-06-15 12:00:00	2020-06-15 12:00:00	2020-06-15 12:00:00
+timestamp-024	timestamp	timestamp	1114	-1	'2020-01-02 00:00:00'::timestamp	2020-01-02 00:00:00	2020-01-02 00:00:00	2020-01-02 00:00:00
+timestamp-025	timestamp	timestamp	1114	-1	'2020-12-31 23:59:59.9999995'::timestamp	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+timestamp-026	timestamp	timestamp	1114	-1	'1883-11-18 12:00:00'::timestamp	1883-11-18 12:00:00	1883-11-18 12:00:00	1883-11-18 12:00:00
+timestamp-027	timestamp	timestamp	1114	-1	'1915-08-04 23:50:00'::timestamp	1915-08-04 23:50:00	1915-08-04 23:50:00	1915-08-04 23:50:00
+timestamp-028	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12.1'::timestamp	2020-01-02 10:11:12.1	2020-01-02 10:11:12.1	2020-01-02 10:11:12.1
+timestamp-029	timestamp	timestamp	1114	-1	'2020-01-02 10:11:12.12345'::timestamp	2020-01-02 10:11:12.12345	2020-01-02 10:11:12.12345	2020-01-02 10:11:12.12345
+timestamp-030	timestamp	timestamp(3)	1114	3	'2020-01-02 10:11:12.123'::timestamp(3)	2020-01-02 10:11:12.123	2020-01-02 10:11:12.123	2020-01-02 10:11:12.123
+timestamp-031	timestamp	timestamp(0)	1114	0	'2020-01-02 10:11:12'::timestamp(0)	2020-01-02 10:11:12	2020-01-02 10:11:12	2020-01-02 10:11:12
+timestamptz-001	timestamptz	timestamptz	1184	-1	'2020-01-02 10:11:12+00'::timestamptz	2020-01-02 10:11:12+00	2020-01-02 05:11:12-05	2020-01-02 15:41:12+05:30
+timestamptz-002	timestamptz	timestamptz	1184	-1	'2020-01-02 10:11:12.123456+00'::timestamptz	2020-01-02 10:11:12.123456+00	2020-01-02 05:11:12.123456-05	2020-01-02 15:41:12.123456+05:30
+timestamptz-003	timestamptz	timestamptz	1184	-1	'2020-01-02 10:11:12.5+00'::timestamptz	2020-01-02 10:11:12.5+00	2020-01-02 05:11:12.5-05	2020-01-02 15:41:12.5+05:30
+timestamptz-004	timestamptz	timestamptz	1184	-1	'2020-06-15 12:00:00+00'::timestamptz	2020-06-15 12:00:00+00	2020-06-15 08:00:00-04	2020-06-15 17:30:00+05:30
+timestamptz-005	timestamptz	timestamptz	1184	-1	'1970-01-01 00:00:00+00'::timestamptz	1970-01-01 00:00:00+00	1969-12-31 19:00:00-05	1970-01-01 05:30:00+05:30
+timestamptz-006	timestamptz	timestamptz	1184	-1	'1969-12-31 23:59:59.999999+00'::timestamptz	1969-12-31 23:59:59.999999+00	1969-12-31 18:59:59.999999-05	1970-01-01 05:29:59.999999+05:30
+timestamptz-007	timestamptz	timestamptz	1184	-1	'infinity'::timestamptz	infinity	infinity	infinity
+timestamptz-008	timestamptz	timestamptz	1184	-1	'-infinity'::timestamptz	-infinity	-infinity	-infinity
+timestamptz-009	timestamptz	timestamptz	1184	-1	'0001-01-01 00:00:00+00'::timestamptz	0001-01-01 00:00:00+00	0001-12-31 19:03:58-04:56:02 BC	0001-01-01 05:53:28+05:53:28
+timestamptz-010	timestamptz	timestamptz	1184	-1	'0044-03-15 12:00:00+00 BC'::timestamptz	0044-03-15 12:00:00+00 BC	0044-03-15 07:03:58-04:56:02 BC	0044-03-15 17:53:28+05:53:28 BC
+timestamptz-011	timestamptz	timestamptz	1184	-1	'4713-01-01 00:00:00+00 BC'::timestamptz	4713-01-01 00:00:00+00 BC	4714-12-31 19:03:58-04:56:02 BC	4713-01-01 05:53:28+05:53:28 BC
+timestamptz-012	timestamptz	timestamptz	1184	-1	'294276-12-31 23:59:59.999999+00'::timestamptz	294276-12-31 23:59:59.999999+00	294276-12-31 18:59:59.999999-05	294277-01-01 05:29:59.999999+05:30
+timestamptz-013	timestamptz	timestamptz	1184	-1	'1900-01-01 00:00:00+00'::timestamptz	1900-01-01 00:00:00+00	1899-12-31 19:00:00-05	1900-01-01 05:21:10+05:21:10
+timestamptz-014	timestamptz	timestamptz	1184	-1	'1850-06-01 12:00:00+00'::timestamptz	1850-06-01 12:00:00+00	1850-06-01 07:03:58-04:56:02	1850-06-01 17:53:28+05:53:28
+timestamptz-015	timestamptz	timestamptz	1184	-1	'2021-03-28 01:30:00+00'::timestamptz	2021-03-28 01:30:00+00	2021-03-27 21:30:00-04	2021-03-28 07:00:00+05:30
+timestamptz-016	timestamptz	timestamptz	1184	-1	'2021-11-07 05:30:00+00'::timestamptz	2021-11-07 05:30:00+00	2021-11-07 01:30:00-04	2021-11-07 11:00:00+05:30
+timestamptz-017	timestamptz	timestamptz	1184	-1	'2021-11-07 06:30:00+00'::timestamptz	2021-11-07 06:30:00+00	2021-11-07 01:30:00-05	2021-11-07 12:00:00+05:30
+timestamptz-018	timestamptz	timestamptz	1184	-1	'10000-01-01 00:00:00+00'::timestamptz	10000-01-01 00:00:00+00	9999-12-31 19:00:00-05	10000-01-01 05:30:00+05:30
+timestamptz-019	timestamptz	timestamptz	1184	-1	'2020-01-02 00:00:00+00'::timestamptz	2020-01-02 00:00:00+00	2020-01-01 19:00:00-05	2020-01-02 05:30:00+05:30
+timestamptz-020	timestamptz	timestamptz	1184	-1	'2020-01-01 22:30:00+00'::timestamptz	2020-01-01 22:30:00+00	2020-01-01 17:30:00-05	2020-01-02 04:00:00+05:30
+timestamptz-021	timestamptz	timestamptz	1184	-1	'1582-10-10 00:00:00+00'::timestamptz	1582-10-10 00:00:00+00	1582-10-09 19:03:58-04:56:02	1582-10-10 05:53:28+05:53:28
+timestamptz-022	timestamptz	timestamptz	1184	-1	'1883-11-18 17:00:00+00'::timestamptz	1883-11-18 17:00:00+00	1883-11-18 12:00:00-05	1883-11-18 22:21:10+05:21:10
+timestamptz-023	timestamptz	timestamptz	1184	-1	'1941-10-01 00:00:00+00'::timestamptz	1941-10-01 00:00:00+00	1941-09-30 19:00:00-05	1941-10-01 06:30:00+06:30
+timestamptz-024	timestamptz	timestamptz	1184	-1	'2020-01-02 10:11:12.000001+00'::timestamptz	2020-01-02 10:11:12.000001+00	2020-01-02 05:11:12.000001-05	2020-01-02 15:41:12.000001+05:30
+timestamptz-025	timestamptz	timestamptz	1184	-1	'9999-12-31 23:59:59+00'::timestamptz	9999-12-31 23:59:59+00	9999-12-31 18:59:59-05	10000-01-01 05:29:59+05:30
+timestamptz-026	timestamptz	timestamptz(3)	1184	3	'2020-01-02 10:11:12.123+00'::timestamptz(3)	2020-01-02 10:11:12.123+00	2020-01-02 05:11:12.123-05	2020-01-02 15:41:12.123+05:30
+interval-001	interval	interval	1186	-1	'0'::interval	00:00:00	00:00:00	00:00:00
+interval-002	interval	interval	1186	-1	'1 year 2 mons 3 days 04:05:06.789'::interval	1 year 2 mons 3 days 04:05:06.789	1 year 2 mons 3 days 04:05:06.789	1 year 2 mons 3 days 04:05:06.789
+interval-003	interval	interval	1186	-1	'-1 year -2 mons +3 days -04:05:06.789012'::interval	-1 years -2 mons +3 days -04:05:06.789012	-1 years -2 mons +3 days -04:05:06.789012	-1 years -2 mons +3 days -04:05:06.789012
+interval-004	interval	interval	1186	-1	'1 day'::interval	1 day	1 day	1 day
+interval-005	interval	interval	1186	-1	'00:00:01'::interval	00:00:01	00:00:01	00:00:01
+interval-006	interval	interval	1186	-1	'-00:00:00.000001'::interval	-00:00:00.000001	-00:00:00.000001	-00:00:00.000001
+interval-007	interval	interval	1186	-1	'178000000 years'::interval	178000000 years	178000000 years	178000000 years
+interval-008	interval	interval	1186	-1	'1 mon'::interval	1 mon	1 mon	1 mon
+interval-009	interval	interval	1186	-1	'2 years'::interval	2 years	2 years	2 years
+interval-010	interval	interval	1186	-1	'1 day 00:00:00.5'::interval	1 day 00:00:00.5	1 day 00:00:00.5	1 day 00:00:00.5
+interval-011	interval	interval	1186	-1	'-1 days'::interval	-1 days	-1 days	-1 days
+interval-012	interval	interval	1186	-1	'100:00:00'::interval	100:00:00	100:00:00	100:00:00
+interval-013	interval	interval	1186	-1	'1 year -1 mons'::interval	11 mons	11 mons	11 mons
+interval-014	interval	interval	1186	-1	'infinity'::interval	infinity	infinity	infinity
+interval-015	interval	interval	1186	-1	'-infinity'::interval	-infinity	-infinity	-infinity
+interval-016	interval	interval	1186	-1	'3 days 04:05:06'::interval	3 days 04:05:06	3 days 04:05:06	3 days 04:05:06
+interval-017	interval	interval	1186	-1	'1.5 seconds'::interval	00:00:01.5	00:00:01.5	00:00:01.5
+interval-018	interval	interval	1186	-1	'-178000000 years'::interval	-178000000 years	-178000000 years	-178000000 years
+interval-019	interval	interval	1186	-1	'14 mons'::interval	1 year 2 mons	1 year 2 mons	1 year 2 mons
+interval-020	interval	interval	1186	-1	'1 day -00:00:01'::interval	1 day -00:00:01	1 day -00:00:01	1 day -00:00:01
+interval-021	interval	interval	1186	-1	'00:00:00.000001'::interval	00:00:00.000001	00:00:00.000001	00:00:00.000001
+interval-022	interval	interval	1186	-1	'1 year'::interval	1 year	1 year	1 year
+interval-023	interval	interval	1186	-1	'25:00:00'::interval	25:00:00	25:00:00	25:00:00
+interval-024	interval	interval	1186	-1	'-00:59:59.999999'::interval	-00:59:59.999999	-00:59:59.999999	-00:59:59.999999
+interval-025	interval	interval year to month	1186	458751	'1 year 2 mons'::interval year to month	1 year 2 mons	1 year 2 mons	1 year 2 mons
+interval-026	interval	interval(3)	1186	2147418115	'1 day 00:00:01.123'::interval(3)	1 day 00:00:01.123	1 day 00:00:01.123	1 day 00:00:01.123
+uuid-001	uuid	uuid	2950	-1	'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11	a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+uuid-002	uuid	uuid	2950	-1	'00000000-0000-0000-0000-000000000000'::uuid	00000000-0000-0000-0000-000000000000	00000000-0000-0000-0000-000000000000	00000000-0000-0000-0000-000000000000
+uuid-003	uuid	uuid	2950	-1	'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid	ffffffff-ffff-ffff-ffff-ffffffffffff	ffffffff-ffff-ffff-ffff-ffffffffffff	ffffffff-ffff-ffff-ffff-ffffffffffff
+json-001	json	json	114	-1	'{"a":1}'::json	{"a":1}	{"a":1}	{"a":1}
+json-002	json	json	114	-1	'null'::json	null	null	null
+json-003	json	json	114	-1	'[1, 2]'::json	[1, 2]	[1, 2]	[1, 2]
+json-004	json	json	114	-1	'"str"'::json	"str"	"str"	"str"
+json-005	json	json	114	-1	'1'::json	1	1	1
+json-006	json	json	114	-1	' {"a" : 1 } '::json	 {"a" : 1 } 	 {"a" : 1 } 	 {"a" : 1 } 
+json-007	json	json	114	-1	'true'::json	true	true	true
+jsonb-001	jsonb	jsonb	3802	-1	'{"a":1}'::jsonb	{"a": 1}	{"a": 1}	{"a": 1}
+jsonb-002	jsonb	jsonb	3802	-1	'null'::jsonb	null	null	null
+jsonb-003	jsonb	jsonb	3802	-1	'[1, 2]'::jsonb	[1, 2]	[1, 2]	[1, 2]
+jsonb-004	jsonb	jsonb	3802	-1	'"str"'::jsonb	"str"	"str"	"str"
+jsonb-005	jsonb	jsonb	3802	-1	'1'::jsonb	1	1	1
+jsonb-006	jsonb	jsonb	3802	-1	'true'::jsonb	true	true	true
+jsonb-007	jsonb	jsonb	3802	-1	'[]'::jsonb	[]	[]	[]
+xml-001	xml	xml	142	-1	xmlparse(content '<a b="c">t</a>')	<a b="c">t</a>	<a b="c">t</a>	<a b="c">t</a>
+xml-002	xml	xml	142	-1	xmlparse(content 'text')	text	text	text
+xml-003	xml	xml	142	-1	xmlparse(document '<?xml version="1.0"?><a/>')	<a/>	<a/>	<a/>
+bit-001	bit	bit(1)	1560	1	'1'::bit(1)	1	1	1
+bit-002	bit	bit(1)	1560	1	'0'::bit(1)	0	0	0
+bit-003	bit	bit(8)	1560	8	'10101010'::bit(8)	10101010	10101010	10101010
+bit-004	bit	bit(3)	1560	3	'101'::bit(3)	101	101	101
+varbit-001	varbit	varbit	1562	-1	''::varbit			
+varbit-002	varbit	varbit	1562	-1	'1'::varbit	1	1	1
+varbit-003	varbit	varbit	1562	-1	'0'::varbit	0	0	0
+varbit-004	varbit	varbit	1562	-1	'101'::varbit	101	101	101
+varbit-005	varbit	varbit(16)	1562	16	'1010'::varbit(16)	1010	1010	1010
+inet-001	inet	inet	869	-1	'192.168.1.1'::inet	192.168.1.1	192.168.1.1	192.168.1.1
+inet-002	inet	inet	869	-1	'192.168.1.1/24'::inet	192.168.1.1/24	192.168.1.1/24	192.168.1.1/24
+inet-003	inet	inet	869	-1	'::1'::inet	::1	::1	::1
+inet-004	inet	inet	869	-1	'2001:db8::1/64'::inet	2001:db8::1/64	2001:db8::1/64	2001:db8::1/64
+inet-005	inet	inet	869	-1	'10.0.0.0/8'::inet	10.0.0.0/8	10.0.0.0/8	10.0.0.0/8
+inet-006	inet	inet	869	-1	'::ffff:1.2.3.4'::inet	::ffff:1.2.3.4	::ffff:1.2.3.4	::ffff:1.2.3.4
+cidr-001	cidr	cidr	650	-1	'192.168.1.0/24'::cidr	192.168.1.0/24	192.168.1.0/24	192.168.1.0/24
+cidr-002	cidr	cidr	650	-1	'10.0.0.0/8'::cidr	10.0.0.0/8	10.0.0.0/8	10.0.0.0/8
+cidr-003	cidr	cidr	650	-1	'::/0'::cidr	::/0	::/0	::/0
+cidr-004	cidr	cidr	650	-1	'2001:db8::/32'::cidr	2001:db8::/32	2001:db8::/32	2001:db8::/32
+macaddr-001	macaddr	macaddr	829	-1	'08:00:2b:01:02:03'::macaddr	08:00:2b:01:02:03	08:00:2b:01:02:03	08:00:2b:01:02:03
+macaddr8-001	macaddr8	macaddr8	774	-1	'08:00:2b:01:02:03:04:05'::macaddr8	08:00:2b:01:02:03:04:05	08:00:2b:01:02:03:04:05	08:00:2b:01:02:03:04:05
+point-001	point	point	600	-1	'(1,2)'::point	(1,2)	(1,2)	(1,2)
+point-002	point	point	600	-1	'(-1.5,2.5e10)'::point	(-1.5,25000000000)	(-1.5,25000000000)	(-1.5,25000000000)
+point-003	point	point	600	-1	'(NaN,Infinity)'::point	(NaN,Infinity)	(NaN,Infinity)	(NaN,Infinity)
+point-004	point	point	600	-1	'(0,0)'::point	(0,0)	(0,0)	(0,0)
+point-005	point	point	600	-1	'(1e-5,-0)'::point	(1e-05,-0)	(1e-05,-0)	(1e-05,-0)
+box-001	box	box	603	-1	'(1,2),(3,4)'::box	(3,4),(1,2)	(3,4),(1,2)	(3,4),(1,2)
+box-002	box	box	603	-1	'(3,4),(1,2)'::box	(3,4),(1,2)	(3,4),(1,2)	(3,4),(1,2)
+box-003	box	box	603	-1	'(0,0),(0,0)'::box	(0,0),(0,0)	(0,0),(0,0)	(0,0),(0,0)
+circle-001	circle	circle	718	-1	'<(1,2),3>'::circle	<(1,2),3>	<(1,2),3>	<(1,2),3>
+circle-002	circle	circle	718	-1	'<(0,0),0>'::circle	<(0,0),0>	<(0,0),0>	<(0,0),0>
+circle-003	circle	circle	718	-1	'<(-1.5,2.5),1e10>'::circle	<(-1.5,2.5),10000000000>	<(-1.5,2.5),10000000000>	<(-1.5,2.5),10000000000>
+line-001	line	line	628	-1	'{1,2,3}'::line	{1,2,3}	{1,2,3}	{1,2,3}
+line-002	line	line	628	-1	'{0,-1,0}'::line	{0,-1,0}	{0,-1,0}	{0,-1,0}
+line-003	line	line	628	-1	'[(0,0),(1,1)]'::line	{1,-1,0}	{1,-1,0}	{1,-1,0}
+lseg-001	lseg	lseg	601	-1	'[(1,2),(3,4)]'::lseg	[(1,2),(3,4)]	[(1,2),(3,4)]	[(1,2),(3,4)]
+lseg-002	lseg	lseg	601	-1	'[(0,0),(0,0)]'::lseg	[(0,0),(0,0)]	[(0,0),(0,0)]	[(0,0),(0,0)]
+path-001	path	path	602	-1	'((1,2),(3,4))'::path	((1,2),(3,4))	((1,2),(3,4))	((1,2),(3,4))
+path-002	path	path	602	-1	'[(1,2),(3,4)]'::path	[(1,2),(3,4)]	[(1,2),(3,4)]	[(1,2),(3,4)]
+path-003	path	path	602	-1	'((0,0))'::path	((0,0))	((0,0))	((0,0))
+path-004	path	path	602	-1	'[(1,2),(3,4),(5,6)]'::path	[(1,2),(3,4),(5,6)]	[(1,2),(3,4),(5,6)]	[(1,2),(3,4),(5,6)]
+polygon-001	polygon	polygon	604	-1	'((1,2),(3,4),(5,6))'::polygon	((1,2),(3,4),(5,6))	((1,2),(3,4),(5,6))	((1,2),(3,4),(5,6))
+polygon-002	polygon	polygon	604	-1	'((0,0))'::polygon	((0,0))	((0,0))	((0,0))
+tsvector-001	tsvector	tsvector	3614	-1	'a b'::tsvector	'a' 'b'	'a' 'b'	'a' 'b'
+tsquery-001	tsquery	tsquery	3615	-1	'a & b'::tsquery	'a' & 'b'	'a' & 'b'	'a' & 'b'
+refcursor-001	refcursor	refcursor	1790	-1	'c1'::refcursor	c1	c1	c1
+other-001	other	regclass	2205	-1	'pg_class'::regclass	pg_class	pg_class	pg_class
+other-002	other	xid	28	-1	'1'::xid	1	1	1
+other-003	other	tid	27	-1	'(0,1)'::tid	(0,1)	(0,1)	(0,1)
+other-004	other	pg_lsn	3220	-1	'0/0'::pg_lsn	0/0	0/0	0/0
+other-005	other	int4range	3904	-1	'[1,5)'::int4range	[1,5)	[1,5)	[1,5)
+other-006	other	int4range	3904	-1	'empty'::int4range	empty	empty	empty
+other-007	other	numrange	3906	-1	'[1.5,2.5]'::numrange	[1.5,2.5]	[1.5,2.5]	[1.5,2.5]
+other-008	other	jsonpath	4072	-1	'$.a'::jsonpath	$."a"	$."a"	$."a"
+other-009	other	record	2249	-1	ROW(1,'a')	(1,a)	(1,a)	(1,a)
+other-010	other	record	2249	-1	ROW(NULL, 'a b', 'c,d')	(,"a b","c,d")	(,"a b","c,d")	(,"a b","c,d")
+other-011	other	unknown	25	-1	'x'	x	x	x
+other-012	other	void	2278	-1	''::void			
+other-013	other	cstring	2275	-1	'abc'::cstring	abc	abc	abc
+enum-001	enum	mood	18729	-1	'ok'::mood	ok	ok	ok
+enum-002	enum	mood	18729	-1	'sad'::mood	sad	sad	sad
+enum-003	enum	s2.color	18749	-1	'red'::s2.color	red	red	red
+enum-004	enum	"Mixed Case"	18745	-1	'x'::"Mixed Case"	x	x	x
+composite-001	composite	pair	18743	-1	ROW(1,'a')::pair	(1,a)	(1,a)	(1,a)
+composite-002	composite	pair	18743	-1	ROW(NULL,'a b')::pair	(,"a b")	(,"a b")	(,"a b")
+domain-001	domain	posint	23	-1	5::posint	5	5	5
+domain-002	domain	shortname	1043	14	'abc'::shortname	abc	abc	abc
+hstore-001	hstore	hstore	16550	-1	'"a"=>"1", "b"=>NULL'::hstore	"a"=>"1", "b"=>NULL	"a"=>"1", "b"=>NULL	"a"=>"1", "b"=>NULL
+hstore-002	hstore	hstore	16550	-1	''::hstore			
+hstore-003	hstore	hstore	16550	-1	'"k 1"=>"v\\"x", "k2"=>""'::hstore	"k2"=>"", "k 1"=>"v\\"x"	"k2"=>"", "k 1"=>"v\\"x"	"k2"=>"", "k 1"=>"v\\"x"
+array-001	array	int4[]	1007	-1	'{}'::int4[]	{}	{}	{}
+array-002	array	int4[]	1007	-1	'{1,2,3}'::int4[]	{1,2,3}	{1,2,3}	{1,2,3}
+array-003	array	int4[]	1007	-1	'{1,NULL,3}'::int4[]	{1,NULL,3}	{1,NULL,3}	{1,NULL,3}
+array-004	array	int4[]	1007	-1	'{{1,2},{3,4}}'::int4[]	{{1,2},{3,4}}	{{1,2},{3,4}}	{{1,2},{3,4}}
+array-005	array	int4[]	1007	-1	'[0:2]={1,2,3}'::int4[]	[0:2]={1,2,3}	[0:2]={1,2,3}	[0:2]={1,2,3}
+array-006	array	int4[]	1007	-1	'{{{1}}}'::int4[]	{{{1}}}	{{{1}}}	{{{1}}}
+array-007	array	int4[]	1007	-1	'[2:3][0:1]={{1,2},{3,4}}'::int4[]	[2:3][0:1]={{1,2},{3,4}}	[2:3][0:1]={{1,2},{3,4}}	[2:3][0:1]={{1,2},{3,4}}
+array-008	array	int4[]	1007	-1	'{NULL}'::int4[]	{NULL}	{NULL}	{NULL}
+array-009	array	int4[]	1007	-1	'{{1,NULL},{NULL,4}}'::int4[]	{{1,NULL},{NULL,4}}	{{1,NULL},{NULL,4}}	{{1,NULL},{NULL,4}}
+array-010	array	int4[]	1007	-1	'[-1:0]={5,6}'::int4[]	[-1:0]={5,6}	[-1:0]={5,6}	[-1:0]={5,6}
+array-011	array	text[]	1009	-1	'{}'::text[]	{}	{}	{}
+array-012	array	text[]	1009	-1	'{a,b}'::text[]	{a,b}	{a,b}	{a,b}
+array-013	array	text[]	1009	-1	'{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}'::text[]	{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}	{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}	{"a b","c,d","e\\"f","g\\\\h",NULL,"NULL",""}
+array-014	array	text[]	1009	-1	'{{a,b},{c,d}}'::text[]	{{a,b},{c,d}}	{{a,b},{c,d}}	{{a,b},{c,d}}
+array-015	array	text[]	1009	-1	'{😀}'::text[]	{😀}	{😀}	{😀}
+array-016	array	text[]	1009	-1	'{"{x}","a''b"}'::text[]	{"{x}",a'b}	{"{x}",a'b}	{"{x}",a'b}
+array-017	array	text[]	1009	-1	'{1,2}'::text[]	{1,2}	{1,2}	{1,2}
+array-018	array	text[]	1009	-1	'{t,f}'::text[]	{t,f}	{t,f}	{t,f}
+array-019	array	text[]	1009	-1	'{" a "}'::text[]	{" a "}	{" a "}	{" a "}
+array-020	array	text[]	1009	-1	'{"a\nb"}'::text[]	{"a\nb"}	{"a\nb"}	{"a\nb"}
+array-021	array	varchar[]	1015	-1	'{a,b}'::varchar[]	{a,b}	{a,b}	{a,b}
+array-022	array	varchar(10)[]	1015	14	'{ab,NULL}'::varchar(10)[]	{ab,NULL}	{ab,NULL}	{ab,NULL}
+array-023	array	char(3)[]	1014	7	'{ab,cd}'::char(3)[]	{"ab ","cd "}	{"ab ","cd "}	{"ab ","cd "}
+array-024	array	bpchar[]	1014	-1	'{ab}'::bpchar[]	{ab}	{ab}	{ab}
+array-025	array	name[]	1003	-1	'{pg_class,x}'::name[]	{pg_class,x}	{pg_class,x}	{pg_class,x}
+array-026	array	"char"[]	1002	-1	'{a,b}'::"char"[]	{a,b}	{a,b}	{a,b}
+array-027	array	bool[]	1000	-1	'{t,f,NULL}'::bool[]	{t,f,NULL}	{t,f,NULL}	{t,f,NULL}
+array-028	array	bool[]	1000	-1	'{}'::bool[]	{}	{}	{}
+array-029	array	bool[]	1000	-1	'{{t},{f}}'::bool[]	{{t},{f}}	{{t},{f}}	{{t},{f}}
+array-030	array	int2[]	1005	-1	'{1,-1,32767}'::int2[]	{1,-1,32767}	{1,-1,32767}	{1,-1,32767}
+array-031	array	int2[]	1005	-1	'{NULL}'::int2[]	{NULL}	{NULL}	{NULL}
+array-032	array	int8[]	1016	-1	'{9223372036854775807,-1,NULL}'::int8[]	{9223372036854775807,-1,NULL}	{9223372036854775807,-1,NULL}	{9223372036854775807,-1,NULL}
+array-033	array	oid[]	1028	-1	'{1,4294967295}'::oid[]	{1,4294967295}	{1,4294967295}	{1,4294967295}
+array-034	array	float4[]	1021	-1	'{1.5,NaN,Infinity,-Infinity,NULL}'::float4[]	{1.5,NaN,Infinity,-Infinity,NULL}	{1.5,NaN,Infinity,-Infinity,NULL}	{1.5,NaN,Infinity,-Infinity,NULL}
+array-035	array	float8[]	1022	-1	'{1.5,NaN,-0,1e300}'::float8[]	{1.5,NaN,-0,1e+300}	{1.5,NaN,-0,1e+300}	{1.5,NaN,-0,1e+300}
+array-036	array	float8[]	1022	-1	'{{1,2},{3,4}}'::float8[]	{{1,2},{3,4}}	{{1,2},{3,4}}	{{1,2},{3,4}}
+array-037	array	numeric[]	1231	-1	'{1.50,NaN,NULL}'::numeric[]	{1.50,NaN,NULL}	{1.50,NaN,NULL}	{1.50,NaN,NULL}
+array-038	array	numeric[]	1231	-1	'{Infinity,-Infinity}'::numeric[]	{Infinity,-Infinity}	{Infinity,-Infinity}	{Infinity,-Infinity}
+array-039	array	numeric[]	1231	-1	'{1,2}'::numeric[]	{1,2}	{1,2}	{1,2}
+array-040	array	numeric(10,2)[]	1231	655366	'{1.5}'::numeric(10,2)[]	{1.50}	{1.50}	{1.50}
+array-041	array	money[]	791	-1	'{$1.00,-$2.50}'::money[]	{$1.00,-$2.50}	{$1.00,-$2.50}	{$1.00,-$2.50}
+array-042	array	money[]	791	-1	'{"$1,234.00"}'::money[]	{"$1,234.00"}	{"$1,234.00"}	{"$1,234.00"}
+array-043	array	bytea[]	1001	-1	'{"\\\\x00ff","\\\\x",NULL}'::bytea[]	{"\\\\x00ff","\\\\x",NULL}	{"\\\\x00ff","\\\\x",NULL}	{"\\\\x00ff","\\\\x",NULL}
+array-044	array	date[]	1182	-1	'{2020-01-02,infinity,NULL}'::date[]	{2020-01-02,infinity,NULL}	{2020-01-02,infinity,NULL}	{2020-01-02,infinity,NULL}
+array-045	array	date[]	1182	-1	'{"0044-03-15 BC"}'::date[]	{"0044-03-15 BC"}	{"0044-03-15 BC"}	{"0044-03-15 BC"}
+array-046	array	time[]	1183	-1	'{10:11:12,23:59:59.999999}'::time[]	{10:11:12,23:59:59.999999}	{10:11:12,23:59:59.999999}	{10:11:12,23:59:59.999999}
+array-047	array	timetz[]	1270	-1	'{10:11:12+02,00:00:00-08}'::timetz[]	{10:11:12+02,00:00:00-08}	{10:11:12+02,00:00:00-08}	{10:11:12+02,00:00:00-08}
+array-048	array	timestamp[]	1115	-1	'{"2020-01-02 10:11:12",infinity,NULL}'::timestamp[]	{"2020-01-02 10:11:12",infinity,NULL}	{"2020-01-02 10:11:12",infinity,NULL}	{"2020-01-02 10:11:12",infinity,NULL}
+array-049	array	timestamptz[]	1185	-1	'{"2020-01-02 10:11:12+00","2020-06-15 12:00:00+00"}'::timestamptz[]	{"2020-01-02 10:11:12+00","2020-06-15 12:00:00+00"}	{"2020-01-02 05:11:12-05","2020-06-15 08:00:00-04"}	{"2020-01-02 15:41:12+05:30","2020-06-15 17:30:00+05:30"}
+array-050	array	interval[]	1187	-1	'{"1 day","01:00:00"}'::interval[]	{"1 day",01:00:00}	{"1 day",01:00:00}	{"1 day",01:00:00}
+array-051	array	uuid[]	2951	-1	'{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}'::uuid[]	{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}	{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}	{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,NULL}
+array-052	array	json[]	199	-1	'{"{\\"a\\":1}","[1,2]",NULL}'::json[]	{"{\\"a\\":1}","[1,2]",NULL}	{"{\\"a\\":1}","[1,2]",NULL}	{"{\\"a\\":1}","[1,2]",NULL}
+array-053	array	jsonb[]	3807	-1	'{"{\\"a\\":1}"}'::jsonb[]	{"{\\"a\\": 1}"}	{"{\\"a\\": 1}"}	{"{\\"a\\": 1}"}
+array-054	array	xml[]	143	-1	'{<a/>}'::xml[]	{<a/>}	{<a/>}	{<a/>}
+array-055	array	bit[]	1561	1	'{1,0}'::bit[]	{1,0}	{1,0}	{1,0}
+array-056	array	bit(8)[]	1561	8	'{10101010}'::bit(8)[]	{10101010}	{10101010}	{10101010}
+array-057	array	varbit[]	1563	-1	'{101,1}'::varbit[]	{101,1}	{101,1}	{101,1}
+array-058	array	inet[]	1041	-1	'{192.168.1.1,::1}'::inet[]	{192.168.1.1,::1}	{192.168.1.1,::1}	{192.168.1.1,::1}
+array-059	array	cidr[]	651	-1	'{10.0.0.0/8}'::cidr[]	{10.0.0.0/8}	{10.0.0.0/8}	{10.0.0.0/8}
+array-060	array	macaddr[]	1040	-1	'{08:00:2b:01:02:03}'::macaddr[]	{08:00:2b:01:02:03}	{08:00:2b:01:02:03}	{08:00:2b:01:02:03}
+array-061	array	point[]	1017	-1	'{"(1,2)","(3,4)"}'::point[]	{"(1,2)","(3,4)"}	{"(1,2)","(3,4)"}	{"(1,2)","(3,4)"}
+array-062	array	point[]	1017	-1	'{}'::point[]	{}	{}	{}
+array-063	array	box[]	1020	-1	'{(1,2),(3,4);(5,6),(7,8)}'::box[]	{(3,4),(1,2);(7,8),(5,6)}	{(3,4),(1,2);(7,8),(5,6)}	{(3,4),(1,2);(7,8),(5,6)}
+array-064	array	circle[]	719	-1	'{"<(1,2),3>"}'::circle[]	{"<(1,2),3>"}	{"<(1,2),3>"}	{"<(1,2),3>"}
+array-065	array	line[]	629	-1	'{"{1,2,3}"}'::line[]	{"{1,2,3}"}	{"{1,2,3}"}	{"{1,2,3}"}
+array-066	array	lseg[]	1018	-1	'{"[(1,2),(3,4)]"}'::lseg[]	{"[(1,2),(3,4)]"}	{"[(1,2),(3,4)]"}	{"[(1,2),(3,4)]"}
+array-067	array	path[]	1019	-1	'{"((1,2),(3,4))"}'::path[]	{"((1,2),(3,4))"}	{"((1,2),(3,4))"}	{"((1,2),(3,4))"}
+array-068	array	polygon[]	1027	-1	'{"((1,2),(3,4))"}'::polygon[]	{"((1,2),(3,4))"}	{"((1,2),(3,4))"}	{"((1,2),(3,4))"}
+array-069	array	mood[]	18728	-1	'{ok,sad,NULL}'::mood[]	{ok,sad,NULL}	{ok,sad,NULL}	{ok,sad,NULL}
+array-070	array	s2.color[]	18748	-1	'{red}'::s2.color[]	{red}	{red}	{red}
+array-071	array	pair[]	18742	-1	'{"(1,a)"}'::pair[]	{"(1,a)"}	{"(1,a)"}	{"(1,a)"}
+array-072	array	int4range[]	3905	-1	'{"[1,5)"}'::int4range[]	{"[1,5)"}	{"[1,5)"}	{"[1,5)"}
+array-073	array	hstore[]	16555	-1	'{"\\"a\\"=>\\"1\\""}'::hstore[]	{"\\"a\\"=>\\"1\\""}	{"\\"a\\"=>\\"1\\""}	{"\\"a\\"=>\\"1\\""}
+array-074	array	tsvector[]	3643	-1	'{a}'::tsvector[]	{'a'}	{'a'}	{'a'}
+array-075	array	refcursor[]	2201	-1	'{c1}'::refcursor[]	{c1}	{c1}	{c1}
+array-076	array	posint[]	18735	-1	'{1,2}'::posint[]	{1,2}	{1,2}	{1,2}
+array-077	array	regclass[]	2210	-1	'{pg_class}'::regclass[]	{pg_class}	{pg_class}	{pg_class}
+bool-null-001	bool-null	bool	16	-1	NULL::bool	\N	\N	\N
+int2-null-001	int2-null	int2	21	-1	NULL::int2	\N	\N	\N
+int4-null-001	int4-null	int4	23	-1	NULL::int4	\N	\N	\N
+int8-null-001	int8-null	int8	20	-1	NULL::int8	\N	\N	\N
+oid-null-001	oid-null	oid	26	-1	NULL::oid	\N	\N	\N
+float4-null-001	float4-null	float4	700	-1	NULL::float4	\N	\N	\N
+float8-null-001	float8-null	float8	701	-1	NULL::float8	\N	\N	\N
+numeric-null-001	numeric-null	numeric	1700	-1	NULL::numeric	\N	\N	\N
+numeric-null-002	numeric-null	numeric(10,2)	1700	655366	NULL::numeric(10,2)	\N	\N	\N
+numeric-null-003	numeric-null	numeric(5,0)	1700	327684	NULL::numeric(5,0)	\N	\N	\N
+money-null-001	money-null	money	790	-1	NULL::money	\N	\N	\N
+text-null-001	text-null	text	25	-1	NULL::text	\N	\N	\N
+varchar-null-001	varchar-null	varchar	1043	-1	NULL::varchar	\N	\N	\N
+varchar-null-002	varchar-null	varchar(10)	1043	14	NULL::varchar(10)	\N	\N	\N
+bpchar-null-001	bpchar-null	char(5)	1042	9	NULL::char(5)	\N	\N	\N
+bpchar-null-002	bpchar-null	char(1)	1042	5	NULL::char(1)	\N	\N	\N
+bpchar-null-003	bpchar-null	bpchar	1042	-1	NULL::bpchar	\N	\N	\N
+name-null-001	name-null	name	19	-1	NULL::name	\N	\N	\N
+char-null-001	char-null	"char"	18	-1	NULL::"char"	\N	\N	\N
+bytea-null-001	bytea-null	bytea	17	-1	NULL::bytea	\N	\N	\N
+date-null-001	date-null	date	1082	-1	NULL::date	\N	\N	\N
+time-null-001	time-null	time	1083	-1	NULL::time	\N	\N	\N
+time-null-002	time-null	time(3)	1083	3	NULL::time(3)	\N	\N	\N
+time-null-003	time-null	time(0)	1083	0	NULL::time(0)	\N	\N	\N
+timetz-null-001	timetz-null	timetz	1266	-1	NULL::timetz	\N	\N	\N
+timetz-null-002	timetz-null	timetz(3)	1266	3	NULL::timetz(3)	\N	\N	\N
+timestamp-null-001	timestamp-null	timestamp	1114	-1	NULL::timestamp	\N	\N	\N
+timestamp-null-002	timestamp-null	timestamp(3)	1114	3	NULL::timestamp(3)	\N	\N	\N
+timestamp-null-003	timestamp-null	timestamp(0)	1114	0	NULL::timestamp(0)	\N	\N	\N
+timestamptz-null-001	timestamptz-null	timestamptz	1184	-1	NULL::timestamptz	\N	\N	\N
+timestamptz-null-002	timestamptz-null	timestamptz(3)	1184	3	NULL::timestamptz(3)	\N	\N	\N
+interval-null-001	interval-null	interval	1186	-1	NULL::interval	\N	\N	\N
+interval-null-002	interval-null	interval year to month	1186	458751	NULL::interval year to month	\N	\N	\N
+interval-null-003	interval-null	interval(3)	1186	2147418115	NULL::interval(3)	\N	\N	\N
+uuid-null-001	uuid-null	uuid	2950	-1	NULL::uuid	\N	\N	\N
+json-null-001	json-null	json	114	-1	NULL::json	\N	\N	\N
+jsonb-null-001	jsonb-null	jsonb	3802	-1	NULL::jsonb	\N	\N	\N
+xml-null-001	xml-null	xml	142	-1	NULL::xml	\N	\N	\N
+bit-null-001	bit-null	bit(1)	1560	1	NULL::bit(1)	\N	\N	\N
+bit-null-002	bit-null	bit(8)	1560	8	NULL::bit(8)	\N	\N	\N
+bit-null-003	bit-null	bit(3)	1560	3	NULL::bit(3)	\N	\N	\N
+varbit-null-001	varbit-null	varbit	1562	-1	NULL::varbit	\N	\N	\N
+varbit-null-002	varbit-null	varbit(16)	1562	16	NULL::varbit(16)	\N	\N	\N
+inet-null-001	inet-null	inet	869	-1	NULL::inet	\N	\N	\N
+cidr-null-001	cidr-null	cidr	650	-1	NULL::cidr	\N	\N	\N
+macaddr-null-001	macaddr-null	macaddr	829	-1	NULL::macaddr	\N	\N	\N
+macaddr8-null-001	macaddr8-null	macaddr8	774	-1	NULL::macaddr8	\N	\N	\N
+point-null-001	point-null	point	600	-1	NULL::point	\N	\N	\N
+box-null-001	box-null	box	603	-1	NULL::box	\N	\N	\N
+circle-null-001	circle-null	circle	718	-1	NULL::circle	\N	\N	\N
+line-null-001	line-null	line	628	-1	NULL::line	\N	\N	\N
+lseg-null-001	lseg-null	lseg	601	-1	NULL::lseg	\N	\N	\N
+path-null-001	path-null	path	602	-1	NULL::path	\N	\N	\N
+polygon-null-001	polygon-null	polygon	604	-1	NULL::polygon	\N	\N	\N
+tsvector-null-001	tsvector-null	tsvector	3614	-1	NULL::tsvector	\N	\N	\N
+tsquery-null-001	tsquery-null	tsquery	3615	-1	NULL::tsquery	\N	\N	\N
+refcursor-null-001	refcursor-null	refcursor	1790	-1	NULL::refcursor	\N	\N	\N
+other-null-001	other-null	regclass	2205	-1	NULL::regclass	\N	\N	\N
+other-null-002	other-null	xid	28	-1	NULL::xid	\N	\N	\N
+other-null-003	other-null	tid	27	-1	NULL::tid	\N	\N	\N
+other-null-004	other-null	pg_lsn	3220	-1	NULL::pg_lsn	\N	\N	\N
+other-null-005	other-null	int4range	3904	-1	NULL::int4range	\N	\N	\N
+other-null-006	other-null	numrange	3906	-1	NULL::numrange	\N	\N	\N
+other-null-007	other-null	jsonpath	4072	-1	NULL::jsonpath	\N	\N	\N
+enum-null-001	enum-null	mood	18729	-1	NULL::mood	\N	\N	\N
+enum-null-002	enum-null	s2.color	18749	-1	NULL::s2.color	\N	\N	\N
+enum-null-003	enum-null	"Mixed Case"	18745	-1	NULL::"Mixed Case"	\N	\N	\N
+composite-null-001	composite-null	pair	18743	-1	NULL::pair	\N	\N	\N
+domain-null-001	domain-null	posint	23	-1	NULL::posint	\N	\N	\N
+hstore-null-001	hstore-null	hstore	16550	-1	NULL::hstore	\N	\N	\N
+array-null-001	array-null	int4[]	1007	-1	NULL::int4[]	\N	\N	\N
+array-null-002	array-null	text[]	1009	-1	NULL::text[]	\N	\N	\N
+array-null-003	array-null	varchar[]	1015	-1	NULL::varchar[]	\N	\N	\N
+array-null-004	array-null	varchar(10)[]	1015	14	NULL::varchar(10)[]	\N	\N	\N
+array-null-005	array-null	char(3)[]	1014	7	NULL::char(3)[]	\N	\N	\N
+array-null-006	array-null	bpchar[]	1014	-1	NULL::bpchar[]	\N	\N	\N
+array-null-007	array-null	name[]	1003	-1	NULL::name[]	\N	\N	\N
+array-null-008	array-null	"char"[]	1002	-1	NULL::"char"[]	\N	\N	\N
+array-null-009	array-null	bool[]	1000	-1	NULL::bool[]	\N	\N	\N
+array-null-010	array-null	int2[]	1005	-1	NULL::int2[]	\N	\N	\N
+array-null-011	array-null	int8[]	1016	-1	NULL::int8[]	\N	\N	\N
+array-null-012	array-null	oid[]	1028	-1	NULL::oid[]	\N	\N	\N
+array-null-013	array-null	float4[]	1021	-1	NULL::float4[]	\N	\N	\N
+array-null-014	array-null	float8[]	1022	-1	NULL::float8[]	\N	\N	\N
+array-null-015	array-null	numeric[]	1231	-1	NULL::numeric[]	\N	\N	\N
+array-null-016	array-null	numeric(10,2)[]	1231	655366	NULL::numeric(10,2)[]	\N	\N	\N
+array-null-017	array-null	money[]	791	-1	NULL::money[]	\N	\N	\N
+array-null-018	array-null	bytea[]	1001	-1	NULL::bytea[]	\N	\N	\N
+array-null-019	array-null	date[]	1182	-1	NULL::date[]	\N	\N	\N
+array-null-020	array-null	time[]	1183	-1	NULL::time[]	\N	\N	\N
+array-null-021	array-null	timetz[]	1270	-1	NULL::timetz[]	\N	\N	\N
+array-null-022	array-null	timestamp[]	1115	-1	NULL::timestamp[]	\N	\N	\N
+array-null-023	array-null	timestamptz[]	1185	-1	NULL::timestamptz[]	\N	\N	\N
+array-null-024	array-null	interval[]	1187	-1	NULL::interval[]	\N	\N	\N
+array-null-025	array-null	uuid[]	2951	-1	NULL::uuid[]	\N	\N	\N
+array-null-026	array-null	json[]	199	-1	NULL::json[]	\N	\N	\N
+array-null-027	array-null	jsonb[]	3807	-1	NULL::jsonb[]	\N	\N	\N
+array-null-028	array-null	xml[]	143	-1	NULL::xml[]	\N	\N	\N
+array-null-029	array-null	bit[]	1561	1	NULL::bit[]	\N	\N	\N
+array-null-030	array-null	bit(8)[]	1561	8	NULL::bit(8)[]	\N	\N	\N
+array-null-031	array-null	varbit[]	1563	-1	NULL::varbit[]	\N	\N	\N
+array-null-032	array-null	inet[]	1041	-1	NULL::inet[]	\N	\N	\N
+array-null-033	array-null	cidr[]	651	-1	NULL::cidr[]	\N	\N	\N
+array-null-034	array-null	macaddr[]	1040	-1	NULL::macaddr[]	\N	\N	\N
+array-null-035	array-null	point[]	1017	-1	NULL::point[]	\N	\N	\N
+array-null-036	array-null	box[]	1020	-1	NULL::box[]	\N	\N	\N
+array-null-037	array-null	circle[]	719	-1	NULL::circle[]	\N	\N	\N
+array-null-038	array-null	line[]	629	-1	NULL::line[]	\N	\N	\N
+array-null-039	array-null	lseg[]	1018	-1	NULL::lseg[]	\N	\N	\N
+array-null-040	array-null	path[]	1019	-1	NULL::path[]	\N	\N	\N
+array-null-041	array-null	polygon[]	1027	-1	NULL::polygon[]	\N	\N	\N
+array-null-042	array-null	mood[]	18728	-1	NULL::mood[]	\N	\N	\N
+array-null-043	array-null	s2.color[]	18748	-1	NULL::s2.color[]	\N	\N	\N
+array-null-044	array-null	pair[]	18742	-1	NULL::pair[]	\N	\N	\N
+array-null-045	array-null	int4range[]	3905	-1	NULL::int4range[]	\N	\N	\N
+array-null-046	array-null	hstore[]	16555	-1	NULL::hstore[]	\N	\N	\N
+array-null-047	array-null	tsvector[]	3643	-1	NULL::tsvector[]	\N	\N	\N
+array-null-048	array-null	refcursor[]	2201	-1	NULL::refcursor[]	\N	\N	\N
+array-null-049	array-null	posint[]	18735	-1	NULL::posint[]	\N	\N	\N
+array-null-050	array-null	regclass[]	2210	-1	NULL::regclass[]	\N	\N	\N
+other-null-008	other-null	unknown	25	-1	NULL	\N	\N	\N

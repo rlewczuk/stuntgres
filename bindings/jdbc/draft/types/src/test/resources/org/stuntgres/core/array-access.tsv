@@ -1,0 +1,261 @@
+#sql	call	result
+'{1,2,3}'::int4[]	getArray()	Integer[Integer:1,Integer:2,Integer:3]
+'{1,2,3}'::int4[]	getArray(1,2)	Integer[Integer:1,Integer:2]
+'{1,2,3}'::int4[]	getArray(2,1)	Integer[Integer:2]
+'{1,2,3}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 3.
+'{1,2,3}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1,2,3}'::int4[]	getArray(1,0)	Integer[Integer:1,Integer:2,Integer:3]
+'{1,2,3}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 3.
+'{1,2,3}'::int4[]	getArray(emptyMap)	Integer[Integer:1,Integer:2,Integer:3]
+'{1,2,3}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{1,2,3}'::int4[]	getBaseTypeName	String:int4
+'{1,2,3}'::int4[]	getBaseType	Integer:4
+'{1,2,3}'::int4[]	toString	String:{1,2,3}
+'{1,2,3}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'{1,2,3}'::int4[]	getResultSet(2,2)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'{1,2,3}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1,2,3}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'{1,2,3}'::int4[]	free;getArray	null
+'{1,2,3}'::int4[]	free;toString	null
+'{1,2,3}'::int4[]	free;free	String:ok
+'{1,2,3}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{}'::int4[]	getArray()	Integer[]
+'{}'::int4[]	getArray(1,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 0.
+'{}'::int4[]	getArray(2,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 0.
+'{}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 0.
+'{}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{}'::int4[]	getArray(1,0)	Integer[]
+'{}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 0.
+'{}'::int4[]	getArray(emptyMap)	Integer[]
+'{}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{}'::int4[]	getBaseTypeName	String:int4
+'{}'::int4[]	getBaseType	Integer:4
+'{}'::int4[]	toString	String:{}
+'{}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=
+'{}'::int4[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 0.
+'{}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=
+'{}'::int4[]	free;getArray	null
+'{}'::int4[]	free;toString	null
+'{}'::int4[]	free;free	String:ok
+'{}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{{1,2},{3,4}}'::int4[]	getArray()	Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]
+'{{1,2},{3,4}}'::int4[]	getArray(1,2)	Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]
+'{{1,2},{3,4}}'::int4[]	getArray(2,1)	Integer[][Integer[Integer:3,Integer:4]]
+'{{1,2},{3,4}}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{{1,2},{3,4}}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{1,2},{3,4}}'::int4[]	getArray(1,0)	Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]
+'{{1,2},{3,4}}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{{1,2},{3,4}}'::int4[]	getArray(emptyMap)	Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]
+'{{1,2},{3,4}}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{{1,2},{3,4}}'::int4[]	getBaseTypeName	String:int4
+'{{1,2},{3,4}}'::int4[]	getBaseType	Integer:4
+'{{1,2},{3,4}}'::int4[]	toString	String:{{1,2},{3,4}}
+'{{1,2},{3,4}}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:_int4:2003 type=1004 rows=(Integer:1;Array:int4:4:Integer[Integer:1,Integer:2]:toString={"1","2"};getString=String:{"1","2"})(Integer:2;Array:int4:4:Integer[Integer:3,Integer:4]:toString={"3","4"};getString=String:{"3","4"})
+'{{1,2},{3,4}}'::int4[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{{1,2},{3,4}}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{1,2},{3,4}}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:_int4:2003 type=1004 rows=(Integer:1;Array:int4:4:Integer[Integer:1,Integer:2]:toString={"1","2"};getString=String:{"1","2"})(Integer:2;Array:int4:4:Integer[Integer:3,Integer:4]:toString={"3","4"};getString=String:{"3","4"})
+'{{1,2},{3,4}}'::int4[]	free;getArray	null
+'{{1,2},{3,4}}'::int4[]	free;toString	null
+'{{1,2},{3,4}}'::int4[]	free;free	String:ok
+'{{1,2},{3,4}}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{1,NULL,3}'::int4[]	getArray()	Integer[Integer:1,null,Integer:3]
+'{1,NULL,3}'::int4[]	getArray(1,2)	Integer[Integer:1,null]
+'{1,NULL,3}'::int4[]	getArray(2,1)	Integer[null]
+'{1,NULL,3}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 3.
+'{1,NULL,3}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1,NULL,3}'::int4[]	getArray(1,0)	Integer[Integer:1,null,Integer:3]
+'{1,NULL,3}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 3.
+'{1,NULL,3}'::int4[]	getArray(emptyMap)	Integer[Integer:1,null,Integer:3]
+'{1,NULL,3}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{1,NULL,3}'::int4[]	getBaseTypeName	String:int4
+'{1,NULL,3}'::int4[]	getBaseType	Integer:4
+'{1,NULL,3}'::int4[]	toString	String:{1,NULL,3}
+'{1,NULL,3}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;null;getString=null)(Integer:3;Integer:3;getString=String:3)
+'{1,NULL,3}'::int4[]	getResultSet(2,2)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:2;null;getString=null)(Integer:3;Integer:3;getString=String:3)
+'{1,NULL,3}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1,NULL,3}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;null;getString=null)(Integer:3;Integer:3;getString=String:3)
+'{1,NULL,3}'::int4[]	free;getArray	null
+'{1,NULL,3}'::int4[]	free;toString	null
+'{1,NULL,3}'::int4[]	free;free	String:ok
+'{1,NULL,3}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'[0:2]={1,2,3}'::int4[]	getArray()	Integer[Integer:1,Integer:2,Integer:3]
+'[0:2]={1,2,3}'::int4[]	getArray(1,2)	Integer[Integer:1,Integer:2]
+'[0:2]={1,2,3}'::int4[]	getArray(2,1)	Integer[Integer:2]
+'[0:2]={1,2,3}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 3.
+'[0:2]={1,2,3}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'[0:2]={1,2,3}'::int4[]	getArray(1,0)	Integer[Integer:1,Integer:2,Integer:3]
+'[0:2]={1,2,3}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 3.
+'[0:2]={1,2,3}'::int4[]	getArray(emptyMap)	Integer[Integer:1,Integer:2,Integer:3]
+'[0:2]={1,2,3}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'[0:2]={1,2,3}'::int4[]	getBaseTypeName	String:int4
+'[0:2]={1,2,3}'::int4[]	getBaseType	Integer:4
+'[0:2]={1,2,3}'::int4[]	toString	String:[0:2]={1,2,3}
+'[0:2]={1,2,3}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'[0:2]={1,2,3}'::int4[]	getResultSet(2,2)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'[0:2]={1,2,3}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'[0:2]={1,2,3}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:int4:4 type=1004 rows=(Integer:1;Integer:1;getString=String:1)(Integer:2;Integer:2;getString=String:2)(Integer:3;Integer:3;getString=String:3)
+'[0:2]={1,2,3}'::int4[]	free;getArray	null
+'[0:2]={1,2,3}'::int4[]	free;toString	null
+'[0:2]={1,2,3}'::int4[]	free;free	String:ok
+'[0:2]={1,2,3}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{a,NULL,"b c"}'::text[]	getArray()	String[String:a,null,String:b c]
+'{a,NULL,"b c"}'::text[]	getArray(1,2)	String[String:a,null]
+'{a,NULL,"b c"}'::text[]	getArray(2,1)	String[null]
+'{a,NULL,"b c"}'::text[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 3.
+'{a,NULL,"b c"}'::text[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{a,NULL,"b c"}'::text[]	getArray(1,0)	String[String:a,null,String:b c]
+'{a,NULL,"b c"}'::text[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 3.
+'{a,NULL,"b c"}'::text[]	getArray(emptyMap)	String[String:a,null,String:b c]
+'{a,NULL,"b c"}'::text[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{a,NULL,"b c"}'::text[]	getBaseTypeName	String:text
+'{a,NULL,"b c"}'::text[]	getBaseType	Integer:12
+'{a,NULL,"b c"}'::text[]	toString	String:{a,NULL,"b c"}
+'{a,NULL,"b c"}'::text[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:text:12 type=1004 rows=(Integer:1;String:a;getString=String:a)(Integer:2;null;getString=null)(Integer:3;String:b c;getString=String:b c)
+'{a,NULL,"b c"}'::text[]	getResultSet(2,2)	String:cols=INDEX:int4:4,VALUE:text:12 type=1004 rows=(Integer:2;null;getString=null)(Integer:3;String:b c;getString=String:b c)
+'{a,NULL,"b c"}'::text[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{a,NULL,"b c"}'::text[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:text:12 type=1004 rows=(Integer:1;String:a;getString=String:a)(Integer:2;null;getString=null)(Integer:3;String:b c;getString=String:b c)
+'{a,NULL,"b c"}'::text[]	free;getArray	null
+'{a,NULL,"b c"}'::text[]	free;toString	null
+'{a,NULL,"b c"}'::text[]	free;free	String:ok
+'{a,NULL,"b c"}'::text[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{{a,b},{c,d}}'::text[]	getArray()	String[][String[String:a,String:b],String[String:c,String:d]]
+'{{a,b},{c,d}}'::text[]	getArray(1,2)	String[][String[String:a,String:b],String[String:c,String:d]]
+'{{a,b},{c,d}}'::text[]	getArray(2,1)	String[][String[String:c,String:d]]
+'{{a,b},{c,d}}'::text[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{{a,b},{c,d}}'::text[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{a,b},{c,d}}'::text[]	getArray(1,0)	String[][String[String:a,String:b],String[String:c,String:d]]
+'{{a,b},{c,d}}'::text[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{{a,b},{c,d}}'::text[]	getArray(emptyMap)	String[][String[String:a,String:b],String[String:c,String:d]]
+'{{a,b},{c,d}}'::text[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{{a,b},{c,d}}'::text[]	getBaseTypeName	String:text
+'{{a,b},{c,d}}'::text[]	getBaseType	Integer:12
+'{{a,b},{c,d}}'::text[]	toString	String:{{a,b},{c,d}}
+'{{a,b},{c,d}}'::text[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:_text:2003 type=1004 rows=(Integer:1;Array:text:12:String[String:a,String:b]:toString={"a","b"};getString=String:{"a","b"})(Integer:2;Array:text:12:String[String:c,String:d]:toString={"c","d"};getString=String:{"c","d"})
+'{{a,b},{c,d}}'::text[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{{a,b},{c,d}}'::text[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{a,b},{c,d}}'::text[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:_text:2003 type=1004 rows=(Integer:1;Array:text:12:String[String:a,String:b]:toString={"a","b"};getString=String:{"a","b"})(Integer:2;Array:text:12:String[String:c,String:d]:toString={"c","d"};getString=String:{"c","d"})
+'{{a,b},{c,d}}'::text[]	free;getArray	null
+'{{a,b},{c,d}}'::text[]	free;toString	null
+'{{a,b},{c,d}}'::text[]	free;free	String:ok
+'{{a,b},{c,d}}'::text[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{1.50,NaN}'::numeric[]	getArray()	!org.stuntgres.util.PSQLException|22003|Bad value for type BigDecimal : NaN
+'{1.50,NaN}'::numeric[]	getArray(1,2)	!org.stuntgres.util.PSQLException|22003|Bad value for type BigDecimal : NaN
+'{1.50,NaN}'::numeric[]	getArray(2,1)	!org.stuntgres.util.PSQLException|22003|Bad value for type BigDecimal : NaN
+'{1.50,NaN}'::numeric[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{1.50,NaN}'::numeric[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1.50,NaN}'::numeric[]	getArray(1,0)	!org.stuntgres.util.PSQLException|22003|Bad value for type BigDecimal : NaN
+'{1.50,NaN}'::numeric[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{1.50,NaN}'::numeric[]	getArray(emptyMap)	!org.stuntgres.util.PSQLException|22003|Bad value for type BigDecimal : NaN
+'{1.50,NaN}'::numeric[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{1.50,NaN}'::numeric[]	getBaseTypeName	String:numeric
+'{1.50,NaN}'::numeric[]	getBaseType	Integer:2
+'{1.50,NaN}'::numeric[]	toString	String:{1.50,NaN}
+'{1.50,NaN}'::numeric[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:numeric:2 type=1004 rows=(Integer:1;BigDecimal:1.50;getString=String:1.50)(Integer:2;Double:NaN;getString=String:NaN)
+'{1.50,NaN}'::numeric[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{1.50,NaN}'::numeric[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{1.50,NaN}'::numeric[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:numeric:2 type=1004 rows=(Integer:1;BigDecimal:1.50;getString=String:1.50)(Integer:2;Double:NaN;getString=String:NaN)
+'{1.50,NaN}'::numeric[]	free;getArray	null
+'{1.50,NaN}'::numeric[]	free;toString	null
+'{1.50,NaN}'::numeric[]	free;free	String:ok
+'{1.50,NaN}'::numeric[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{t,f}'::bool[]	getArray()	Boolean[Boolean:true,Boolean:false]
+'{t,f}'::bool[]	getArray(1,2)	Boolean[Boolean:true,Boolean:false]
+'{t,f}'::bool[]	getArray(2,1)	Boolean[Boolean:false]
+'{t,f}'::bool[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{t,f}'::bool[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{t,f}'::bool[]	getArray(1,0)	Boolean[Boolean:true,Boolean:false]
+'{t,f}'::bool[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{t,f}'::bool[]	getArray(emptyMap)	Boolean[Boolean:true,Boolean:false]
+'{t,f}'::bool[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{t,f}'::bool[]	getBaseTypeName	String:bool
+'{t,f}'::bool[]	getBaseType	Integer:-7
+'{t,f}'::bool[]	toString	String:{t,f}
+'{t,f}'::bool[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:bool:-7 type=1004 rows=(Integer:1;Boolean:true;getString=String:t)(Integer:2;Boolean:false;getString=String:f)
+'{t,f}'::bool[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{t,f}'::bool[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{t,f}'::bool[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:bool:-7 type=1004 rows=(Integer:1;Boolean:true;getString=String:t)(Integer:2;Boolean:false;getString=String:f)
+'{t,f}'::bool[]	free;getArray	null
+'{t,f}'::bool[]	free;toString	null
+'{t,f}'::bool[]	free;free	String:ok
+'{t,f}'::bool[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{"(1,2)"}'::point[]	getArray()	Object[org.stuntgres.geometric.PGpoint:point:(1.0,2.0)]
+'{"(1,2)"}'::point[]	getArray(1,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"(1,2)"}'::point[]	getArray(2,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"(1,2)"}'::point[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 1.
+'{"(1,2)"}'::point[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{"(1,2)"}'::point[]	getArray(1,0)	Object[org.stuntgres.geometric.PGpoint:point:(1.0,2.0)]
+'{"(1,2)"}'::point[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 1.
+'{"(1,2)"}'::point[]	getArray(emptyMap)	Object[org.stuntgres.geometric.PGpoint:point:(1.0,2.0)]
+'{"(1,2)"}'::point[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{"(1,2)"}'::point[]	getBaseTypeName	String:point
+'{"(1,2)"}'::point[]	getBaseType	Integer:1111
+'{"(1,2)"}'::point[]	toString	String:{"(1,2)"}
+'{"(1,2)"}'::point[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:point:1111 type=1004 rows=(Integer:1;org.stuntgres.geometric.PGpoint:point:(1.0,2.0);getString=String:(1,2))
+'{"(1,2)"}'::point[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"(1,2)"}'::point[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{"(1,2)"}'::point[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:point:1111 type=1004 rows=(Integer:1;org.stuntgres.geometric.PGpoint:point:(1.0,2.0);getString=String:(1,2))
+'{"(1,2)"}'::point[]	free;getArray	null
+'{"(1,2)"}'::point[]	free;toString	null
+'{"(1,2)"}'::point[]	free;free	String:ok
+'{"(1,2)"}'::point[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{ok,sad}'::mood[]	getArray()	String[String:ok,String:sad]
+'{ok,sad}'::mood[]	getArray(1,2)	String[String:ok,String:sad]
+'{ok,sad}'::mood[]	getArray(2,1)	String[String:sad]
+'{ok,sad}'::mood[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{ok,sad}'::mood[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{ok,sad}'::mood[]	getArray(1,0)	String[String:ok,String:sad]
+'{ok,sad}'::mood[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{ok,sad}'::mood[]	getArray(emptyMap)	String[String:ok,String:sad]
+'{ok,sad}'::mood[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{ok,sad}'::mood[]	getBaseTypeName	String:mood
+'{ok,sad}'::mood[]	getBaseType	Integer:12
+'{ok,sad}'::mood[]	toString	String:{ok,sad}
+'{ok,sad}'::mood[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:mood:12 type=1004 rows=(Integer:1;String:ok;getString=String:ok)(Integer:2;String:sad;getString=String:sad)
+'{ok,sad}'::mood[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{ok,sad}'::mood[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{ok,sad}'::mood[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:mood:12 type=1004 rows=(Integer:1;String:ok;getString=String:ok)(Integer:2;String:sad;getString=String:sad)
+'{ok,sad}'::mood[]	free;getArray	null
+'{ok,sad}'::mood[]	free;toString	null
+'{ok,sad}'::mood[]	free;free	String:ok
+'{ok,sad}'::mood[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray()	Timestamp[Timestamp:1577959872000/0]
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(1,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(2,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 1.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(1,0)	Timestamp[Timestamp:1577959872000/0]
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 1.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(emptyMap)	Timestamp[Timestamp:1577959872000/0]
+'{"2020-01-02 10:11:12"}'::timestamp[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getBaseTypeName	String:timestamp
+'{"2020-01-02 10:11:12"}'::timestamp[]	getBaseType	Integer:93
+'{"2020-01-02 10:11:12"}'::timestamp[]	toString	String:{"2020-01-02 10:11:12"}
+'{"2020-01-02 10:11:12"}'::timestamp[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:timestamp:93 type=1004 rows=(Integer:1;Timestamp:1577959872000/0;getString=String:2020-01-02 10:11:12)
+'{"2020-01-02 10:11:12"}'::timestamp[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 1.
+'{"2020-01-02 10:11:12"}'::timestamp[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{"2020-01-02 10:11:12"}'::timestamp[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:timestamp:93 type=1004 rows=(Integer:1;Timestamp:1577959872000/0;getString=String:2020-01-02 10:11:12)
+'{"2020-01-02 10:11:12"}'::timestamp[]	free;getArray	null
+'{"2020-01-02 10:11:12"}'::timestamp[]	free;toString	null
+'{"2020-01-02 10:11:12"}'::timestamp[]	free;free	String:ok
+'{"2020-01-02 10:11:12"}'::timestamp[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray()	Integer[][][Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]],Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]]
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(1,2)	Integer[][][Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]],Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]]
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(2,1)	Integer[][][Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]]
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(2,5)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 7, number of elements: 2.
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(1,0)	Integer[][][Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]],Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]]
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(4,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 5, number of elements: 2.
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(emptyMap)	Integer[][][Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]],Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]]
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getArray(map)	!java.sql.SQLFeatureNotSupportedException|0A000|Method org.postgresql.jdbc.PgArray.getArrayImpl(long,int,Map) is not yet implemented.
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getBaseTypeName	String:int4
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getBaseType	Integer:4
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	toString	String:{{{1,2},{3,4}},{{5,6},{7,8}}}
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getResultSet()	String:cols=INDEX:int4:4,VALUE:_int4:2003 type=1004 rows=(Integer:1;Array:int4:4:Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]:toString={{"1","2"},{"3","4"}};getString=String:{{"1","2"},{"3","4"}})(Integer:2;Array:int4:4:Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]:toString={{"5","6"},{"7","8"}};getString=String:{{"5","6"},{"7","8"}})
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getResultSet(2,2)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 3, number of elements: 2.
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getResultSet(0,1)	!org.stuntgres.util.PSQLException|22000|The array index is out of range: 0
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	getResultSet(emptyMap)	String:cols=INDEX:int4:4,VALUE:_int4:2003 type=1004 rows=(Integer:1;Array:int4:4:Integer[][Integer[Integer:1,Integer:2],Integer[Integer:3,Integer:4]]:toString={{"1","2"},{"3","4"}};getString=String:{{"1","2"},{"3","4"}})(Integer:2;Array:int4:4:Integer[][Integer[Integer:5,Integer:6],Integer[Integer:7,Integer:8]]:toString={{"5","6"},{"7","8"}};getString=String:{{"5","6"},{"7","8"}})
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	free;getArray	null
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	free;toString	null
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	free;free	String:ok
+'{{{1,2},{3,4}},{{5,6},{7,8}}}'::int4[]	free;getBaseTypeName	!java.lang.NullPointerException|-|Cannot invoke "org.postgresql.core.BaseConnection.getTypeInfo()" because the return value of "org.postgresql.jdbc.PgArray.getConnection()" is null

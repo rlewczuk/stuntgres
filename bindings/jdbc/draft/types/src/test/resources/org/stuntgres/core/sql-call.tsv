@@ -1,0 +1,361 @@
+#id	scs	mode	sql	result or !SQLState	isFunction
+call-01	on	select	{call f()}	select * from f() as result	true
+call-01	on	callIfNoReturn	{call f()}	call f()	true
+call-01	on	call	{call f()}	call f()	true
+call-01	off	select	{call f()}	select * from f() as result	true
+call-01	off	callIfNoReturn	{call f()}	call f()	true
+call-01	off	call	{call f()}	call f()	true
+call-02	on	select	{call f(?)}	select * from f(?) as result	true
+call-02	on	callIfNoReturn	{call f(?)}	call f(?)	true
+call-02	on	call	{call f(?)}	call f(?)	true
+call-02	off	select	{call f(?)}	select * from f(?) as result	true
+call-02	off	callIfNoReturn	{call f(?)}	call f(?)	true
+call-02	off	call	{call f(?)}	call f(?)	true
+call-03	on	select	{call f(?, ?)}	select * from f(?, ?) as result	true
+call-03	on	callIfNoReturn	{call f(?, ?)}	call f(?, ?)	true
+call-03	on	call	{call f(?, ?)}	call f(?, ?)	true
+call-03	off	select	{call f(?, ?)}	select * from f(?, ?) as result	true
+call-03	off	callIfNoReturn	{call f(?, ?)}	call f(?, ?)	true
+call-03	off	call	{call f(?, ?)}	call f(?, ?)	true
+call-04	on	select	{? = call f()}	select * from f(?) as result	true
+call-04	on	callIfNoReturn	{? = call f()}	select * from f(?) as result	true
+call-04	on	call	{? = call f()}	call f(?)	true
+call-04	off	select	{? = call f()}	select * from f(?) as result	true
+call-04	off	callIfNoReturn	{? = call f()}	select * from f(?) as result	true
+call-04	off	call	{? = call f()}	call f(?)	true
+call-05	on	select	{? = call f(?)}	select * from f(?,?) as result	true
+call-05	on	callIfNoReturn	{? = call f(?)}	select * from f(?,?) as result	true
+call-05	on	call	{? = call f(?)}	call f(?,?)	true
+call-05	off	select	{? = call f(?)}	select * from f(?,?) as result	true
+call-05	off	callIfNoReturn	{? = call f(?)}	select * from f(?,?) as result	true
+call-05	off	call	{? = call f(?)}	call f(?,?)	true
+call-06	on	select	{?= call f(?, ?)}	select * from f(?,?, ?) as result	true
+call-06	on	callIfNoReturn	{?= call f(?, ?)}	select * from f(?,?, ?) as result	true
+call-06	on	call	{?= call f(?, ?)}	call f(?,?, ?)	true
+call-06	off	select	{?= call f(?, ?)}	select * from f(?,?, ?) as result	true
+call-06	off	callIfNoReturn	{?= call f(?, ?)}	select * from f(?,?, ?) as result	true
+call-06	off	call	{?= call f(?, ?)}	call f(?,?, ?)	true
+call-07	on	select	{ ? = call f(?) }	select * from f(?,?)  as result	true
+call-07	on	callIfNoReturn	{ ? = call f(?) }	select * from f(?,?)  as result	true
+call-07	on	call	{ ? = call f(?) }	call f(?,?) 	true
+call-07	off	select	{ ? = call f(?) }	select * from f(?,?)  as result	true
+call-07	off	callIfNoReturn	{ ? = call f(?) }	select * from f(?,?)  as result	true
+call-07	off	call	{ ? = call f(?) }	call f(?,?) 	true
+call-08	on	select	{?=call f(?)}	select * from f(?,?) as result	true
+call-08	on	callIfNoReturn	{?=call f(?)}	select * from f(?,?) as result	true
+call-08	on	call	{?=call f(?)}	call f(?,?)	true
+call-08	off	select	{?=call f(?)}	select * from f(?,?) as result	true
+call-08	off	callIfNoReturn	{?=call f(?)}	select * from f(?,?) as result	true
+call-08	off	call	{?=call f(?)}	call f(?,?)	true
+call-09	on	select	{call f}	select * from f() as result	true
+call-09	on	callIfNoReturn	{call f}	call f()	true
+call-09	on	call	{call f}	call f()	true
+call-09	off	select	{call f}	select * from f() as result	true
+call-09	off	callIfNoReturn	{call f}	call f()	true
+call-09	off	call	{call f}	call f()	true
+call-10	on	select	{? = call f}	select * from f(?) as result	true
+call-10	on	callIfNoReturn	{? = call f}	select * from f(?) as result	true
+call-10	on	call	{? = call f}	call f(?)	true
+call-10	off	select	{? = call f}	select * from f(?) as result	true
+call-10	off	callIfNoReturn	{? = call f}	select * from f(?) as result	true
+call-10	off	call	{? = call f}	call f(?)	true
+call-11	on	select	{CALL f(?)}	select * from f(?) as result	true
+call-11	on	callIfNoReturn	{CALL f(?)}	call f(?)	true
+call-11	on	call	{CALL f(?)}	call f(?)	true
+call-11	off	select	{CALL f(?)}	select * from f(?) as result	true
+call-11	off	callIfNoReturn	{CALL f(?)}	call f(?)	true
+call-11	off	call	{CALL f(?)}	call f(?)	true
+call-12	on	select	{ call f(?) }	select * from f(?)  as result	true
+call-12	on	callIfNoReturn	{ call f(?) }	call f(?) 	true
+call-12	on	call	{ call f(?) }	call f(?) 	true
+call-12	off	select	{ call f(?) }	select * from f(?)  as result	true
+call-12	off	callIfNoReturn	{ call f(?) }	call f(?) 	true
+call-12	off	call	{ call f(?) }	call f(?) 	true
+call-13	on	select	  {call f(?)}  	select * from f(?) as result	true
+call-13	on	callIfNoReturn	  {call f(?)}  	call f(?)	true
+call-13	on	call	  {call f(?)}  	call f(?)	true
+call-13	off	select	  {call f(?)}  	select * from f(?) as result	true
+call-13	off	callIfNoReturn	  {call f(?)}  	call f(?)	true
+call-13	off	call	  {call f(?)}  	call f(?)	true
+call-14	on	select	/* c */ {call f(?)} -- t	select * from f(?) as result	true
+call-14	on	callIfNoReturn	/* c */ {call f(?)} -- t	call f(?)	true
+call-14	on	call	/* c */ {call f(?)} -- t	call f(?)	true
+call-14	off	select	/* c */ {call f(?)} -- t	select * from f(?) as result	true
+call-14	off	callIfNoReturn	/* c */ {call f(?)} -- t	call f(?)	true
+call-14	off	call	/* c */ {call f(?)} -- t	call f(?)	true
+call-15	on	select	{call f(?)} x	!2F003	-
+call-15	on	callIfNoReturn	{call f(?)} x	!2F003	-
+call-15	on	call	{call f(?)} x	!2F003	-
+call-15	off	select	{call f(?)} x	!2F003	-
+call-15	off	callIfNoReturn	{call f(?)} x	!2F003	-
+call-15	off	call	{call f(?)} x	!2F003	-
+call-16	on	select	{call f(?)};	!2F003	-
+call-16	on	callIfNoReturn	{call f(?)};	!2F003	-
+call-16	on	call	{call f(?)};	!2F003	-
+call-16	off	select	{call f(?)};	!2F003	-
+call-16	off	callIfNoReturn	{call f(?)};	!2F003	-
+call-16	off	call	{call f(?)};	!2F003	-
+call-17	on	select	{call f(?); }	!2F003	-
+call-17	on	callIfNoReturn	{call f(?); }	!2F003	-
+call-17	on	call	{call f(?); }	!2F003	-
+call-17	off	select	{call f(?); }	!2F003	-
+call-17	off	callIfNoReturn	{call f(?); }	!2F003	-
+call-17	off	call	{call f(?); }	!2F003	-
+call-18	on	select	{call f('}')}	select * from f('}') as result	true
+call-18	on	callIfNoReturn	{call f('}')}	call f('}')	true
+call-18	on	call	{call f('}')}	call f('}')	true
+call-18	off	select	{call f('}')}	select * from f('}') as result	true
+call-18	off	callIfNoReturn	{call f('}')}	call f('}')	true
+call-18	off	call	{call f('}')}	call f('}')	true
+call-19	on	select	{call f('a;b')}	select * from f('a;b') as result	true
+call-19	on	callIfNoReturn	{call f('a;b')}	call f('a;b')	true
+call-19	on	call	{call f('a;b')}	call f('a;b')	true
+call-19	off	select	{call f('a;b')}	select * from f('a;b') as result	true
+call-19	off	callIfNoReturn	{call f('a;b')}	call f('a;b')	true
+call-19	off	call	{call f('a;b')}	call f('a;b')	true
+call-20	on	select	{call f({fn lcase(?)})}	!2F003	-
+call-20	on	callIfNoReturn	{call f({fn lcase(?)})}	!2F003	-
+call-20	on	call	{call f({fn lcase(?)})}	!2F003	-
+call-20	off	select	{call f({fn lcase(?)})}	!2F003	-
+call-20	off	callIfNoReturn	{call f({fn lcase(?)})}	!2F003	-
+call-20	off	call	{call f({fn lcase(?)})}	!2F003	-
+call-21	on	select	{call f({d '2020-01-01'})}	!2F003	-
+call-21	on	callIfNoReturn	{call f({d '2020-01-01'})}	!2F003	-
+call-21	on	call	{call f({d '2020-01-01'})}	!2F003	-
+call-21	off	select	{call f({d '2020-01-01'})}	!2F003	-
+call-21	off	callIfNoReturn	{call f({d '2020-01-01'})}	!2F003	-
+call-21	off	call	{call f({d '2020-01-01'})}	!2F003	-
+call-22	on	select	{call\tf(?)}	select * from f(?) as result	true
+call-22	on	callIfNoReturn	{call\tf(?)}	call f(?)	true
+call-22	on	call	{call\tf(?)}	call f(?)	true
+call-22	off	select	{call\tf(?)}	select * from f(?) as result	true
+call-22	off	callIfNoReturn	{call\tf(?)}	call f(?)	true
+call-22	off	call	{call\tf(?)}	call f(?)	true
+call-23	on	select	{call\nf(?)}	select * from f(?) as result	true
+call-23	on	callIfNoReturn	{call\nf(?)}	call f(?)	true
+call-23	on	call	{call\nf(?)}	call f(?)	true
+call-23	off	select	{call\nf(?)}	select * from f(?) as result	true
+call-23	off	callIfNoReturn	{call\nf(?)}	call f(?)	true
+call-23	off	call	{call\nf(?)}	call f(?)	true
+call-24	on	select	{callf(?)}	!2F003	-
+call-24	on	callIfNoReturn	{callf(?)}	!2F003	-
+call-24	on	call	{callf(?)}	!2F003	-
+call-24	off	select	{callf(?)}	!2F003	-
+call-24	off	callIfNoReturn	{callf(?)}	!2F003	-
+call-24	off	call	{callf(?)}	!2F003	-
+call-25	on	select	{call }	select * from () as result	true
+call-25	on	callIfNoReturn	{call }	call ()	true
+call-25	on	call	{call }	call ()	true
+call-25	off	select	{call }	select * from () as result	true
+call-25	off	callIfNoReturn	{call }	call ()	true
+call-25	off	call	{call }	call ()	true
+call-26	on	select	{call}	!2F003	-
+call-26	on	callIfNoReturn	{call}	!2F003	-
+call-26	on	call	{call}	!2F003	-
+call-26	off	select	{call}	!2F003	-
+call-26	off	callIfNoReturn	{call}	!2F003	-
+call-26	off	call	{call}	!2F003	-
+call-27	on	select	{	!2F003	-
+call-27	on	callIfNoReturn	{	!2F003	-
+call-27	on	call	{	!2F003	-
+call-27	off	select	{	!2F003	-
+call-27	off	callIfNoReturn	{	!2F003	-
+call-27	off	call	{	!2F003	-
+call-28	on	select	{?	!2F003	-
+call-28	on	callIfNoReturn	{?	!2F003	-
+call-28	on	call	{?	!2F003	-
+call-28	off	select	{?	!2F003	-
+call-28	off	callIfNoReturn	{?	!2F003	-
+call-28	off	call	{?	!2F003	-
+call-29	on	select	{? =	!2F003	-
+call-29	on	callIfNoReturn	{? =	!2F003	-
+call-29	on	call	{? =	!2F003	-
+call-29	off	select	{? =	!2F003	-
+call-29	off	callIfNoReturn	{? =	!2F003	-
+call-29	off	call	{? =	!2F003	-
+call-30	on	select	{? = call	!2F003	-
+call-30	on	callIfNoReturn	{? = call	!2F003	-
+call-30	on	call	{? = call	!2F003	-
+call-30	off	select	{? = call	!2F003	-
+call-30	off	callIfNoReturn	{? = call	!2F003	-
+call-30	off	call	{? = call	!2F003	-
+call-31	on	select	{? = x f()}	!2F003	-
+call-31	on	callIfNoReturn	{? = x f()}	!2F003	-
+call-31	on	call	{? = x f()}	!2F003	-
+call-31	off	select	{? = x f()}	!2F003	-
+call-31	off	callIfNoReturn	{? = x f()}	!2F003	-
+call-31	off	call	{? = x f()}	!2F003	-
+call-32	on	select	{x f()}	!2F003	-
+call-32	on	callIfNoReturn	{x f()}	!2F003	-
+call-32	on	call	{x f()}	!2F003	-
+call-32	off	select	{x f()}	!2F003	-
+call-32	off	callIfNoReturn	{x f()}	!2F003	-
+call-32	off	call	{x f()}	!2F003	-
+call-33	on	select	call f(?)	call f(?)	true
+call-33	on	callIfNoReturn	call f(?)	call f(?)	true
+call-33	on	call	call f(?)	call f(?)	true
+call-33	off	select	call f(?)	call f(?)	true
+call-33	off	callIfNoReturn	call f(?)	call f(?)	true
+call-33	off	call	call f(?)	call f(?)	true
+call-34	on	select	CALL f(?)	CALL f(?)	true
+call-34	on	callIfNoReturn	CALL f(?)	CALL f(?)	true
+call-34	on	call	CALL f(?)	CALL f(?)	true
+call-34	off	select	CALL f(?)	CALL f(?)	true
+call-34	off	callIfNoReturn	CALL f(?)	CALL f(?)	true
+call-34	off	call	CALL f(?)	CALL f(?)	true
+call-35	on	select	  call f(?)	  call f(?)	true
+call-35	on	callIfNoReturn	  call f(?)	  call f(?)	true
+call-35	on	call	  call f(?)	  call f(?)	true
+call-35	off	select	  call f(?)	  call f(?)	true
+call-35	off	callIfNoReturn	  call f(?)	  call f(?)	true
+call-35	off	call	  call f(?)	  call f(?)	true
+call-36	on	select	/* c */ call f(?)	/* c */ call f(?)	true
+call-36	on	callIfNoReturn	/* c */ call f(?)	/* c */ call f(?)	true
+call-36	on	call	/* c */ call f(?)	/* c */ call f(?)	true
+call-36	off	select	/* c */ call f(?)	/* c */ call f(?)	true
+call-36	off	callIfNoReturn	/* c */ call f(?)	/* c */ call f(?)	true
+call-36	off	call	/* c */ call f(?)	/* c */ call f(?)	true
+call-37	on	select	callf(?)	callf(?)	false
+call-37	on	callIfNoReturn	callf(?)	callf(?)	false
+call-37	on	call	callf(?)	callf(?)	false
+call-37	off	select	callf(?)	callf(?)	false
+call-37	off	callIfNoReturn	callf(?)	callf(?)	false
+call-37	off	call	callf(?)	callf(?)	false
+call-38	on	select	call	call	false
+call-38	on	callIfNoReturn	call	call	false
+call-38	on	call	call	call	false
+call-38	off	select	call	call	false
+call-38	off	callIfNoReturn	call	call	false
+call-38	off	call	call	call	false
+call-39	on	select	call 	call 	false
+call-39	on	callIfNoReturn	call 	call 	false
+call-39	on	call	call 	call 	false
+call-39	off	select	call 	call 	false
+call-39	off	callIfNoReturn	call 	call 	false
+call-39	off	call	call 	call 	false
+call-40	on	select	call f	call f	true
+call-40	on	callIfNoReturn	call f	call f	true
+call-40	on	call	call f	call f	true
+call-40	off	select	call f	call f	true
+call-40	off	callIfNoReturn	call f	call f	true
+call-40	off	call	call f	call f	true
+call-41	on	select	SELECT f(?)	SELECT f(?)	false
+call-41	on	callIfNoReturn	SELECT f(?)	SELECT f(?)	false
+call-41	on	call	SELECT f(?)	SELECT f(?)	false
+call-41	off	select	SELECT f(?)	SELECT f(?)	false
+call-41	off	callIfNoReturn	SELECT f(?)	SELECT f(?)	false
+call-41	off	call	SELECT f(?)	SELECT f(?)	false
+call-42	on	select	select * from f(?)	select * from f(?)	false
+call-42	on	callIfNoReturn	select * from f(?)	select * from f(?)	false
+call-42	on	call	select * from f(?)	select * from f(?)	false
+call-42	off	select	select * from f(?)	select * from f(?)	false
+call-42	off	callIfNoReturn	select * from f(?)	select * from f(?)	false
+call-42	off	call	select * from f(?)	select * from f(?)	false
+call-43	on	select			false
+call-43	on	callIfNoReturn			false
+call-43	on	call			false
+call-43	off	select			false
+call-43	off	callIfNoReturn			false
+call-43	off	call			false
+call-44	on	select	 	 	false
+call-44	on	callIfNoReturn	 	 	false
+call-44	on	call	 	 	false
+call-44	off	select	 	 	false
+call-44	off	callIfNoReturn	 	 	false
+call-44	off	call	 	 	false
+call-45	on	select	{call f( )}	select * from f( ) as result	true
+call-45	on	callIfNoReturn	{call f( )}	call f( )	true
+call-45	on	call	{call f( )}	call f( )	true
+call-45	off	select	{call f( )}	select * from f( ) as result	true
+call-45	off	callIfNoReturn	{call f( )}	call f( )	true
+call-45	off	call	{call f( )}	call f( )	true
+call-46	on	select	{? = call f( )}	select * from f(? ) as result	true
+call-46	on	callIfNoReturn	{? = call f( )}	select * from f(? ) as result	true
+call-46	on	call	{? = call f( )}	call f(? )	true
+call-46	off	select	{? = call f( )}	select * from f(? ) as result	true
+call-46	off	callIfNoReturn	{? = call f( )}	select * from f(? ) as result	true
+call-46	off	call	{? = call f( )}	call f(? )	true
+call-47	on	select	{? = call f(/* c */ ?)}	select * from f(?,/* c */ ?) as result	true
+call-47	on	callIfNoReturn	{? = call f(/* c */ ?)}	select * from f(?,/* c */ ?) as result	true
+call-47	on	call	{? = call f(/* c */ ?)}	call f(?,/* c */ ?)	true
+call-47	off	select	{? = call f(/* c */ ?)}	select * from f(?,/* c */ ?) as result	true
+call-47	off	callIfNoReturn	{? = call f(/* c */ ?)}	select * from f(?,/* c */ ?) as result	true
+call-47	off	call	{? = call f(/* c */ ?)}	call f(?,/* c */ ?)	true
+call-48	on	select	{? = call f( ? )}	select * from f(?, ? ) as result	true
+call-48	on	callIfNoReturn	{? = call f( ? )}	select * from f(?, ? ) as result	true
+call-48	on	call	{? = call f( ? )}	call f(?, ? )	true
+call-48	off	select	{? = call f( ? )}	select * from f(?, ? ) as result	true
+call-48	off	callIfNoReturn	{? = call f( ? )}	select * from f(?, ? ) as result	true
+call-48	off	call	{? = call f( ? )}	call f(?, ? )	true
+call-49	on	select	{? = call f(), g()}	select * from f(?), g() as result	true
+call-49	on	callIfNoReturn	{? = call f(), g()}	select * from f(?), g() as result	true
+call-49	on	call	{? = call f(), g()}	call f(?), g()	true
+call-49	off	select	{? = call f(), g()}	select * from f(?), g() as result	true
+call-49	off	callIfNoReturn	{? = call f(), g()}	select * from f(?), g() as result	true
+call-49	off	call	{? = call f(), g()}	call f(?), g()	true
+call-50	on	select	{? = call s.f(?)}	select * from s.f(?,?) as result	true
+call-50	on	callIfNoReturn	{? = call s.f(?)}	select * from s.f(?,?) as result	true
+call-50	on	call	{? = call s.f(?)}	call s.f(?,?)	true
+call-50	off	select	{? = call s.f(?)}	select * from s.f(?,?) as result	true
+call-50	off	callIfNoReturn	{? = call s.f(?)}	select * from s.f(?,?) as result	true
+call-50	off	call	{? = call s.f(?)}	call s.f(?,?)	true
+call-51	on	select	{? = call "F"(?)}	select * from "F"(?,?) as result	true
+call-51	on	callIfNoReturn	{? = call "F"(?)}	select * from "F"(?,?) as result	true
+call-51	on	call	{? = call "F"(?)}	call "F"(?,?)	true
+call-51	off	select	{? = call "F"(?)}	select * from "F"(?,?) as result	true
+call-51	off	callIfNoReturn	{? = call "F"(?)}	select * from "F"(?,?) as result	true
+call-51	off	call	{? = call "F"(?)}	call "F"(?,?)	true
+call-52	on	select	{call f(?)} {call g(?)}	!2F003	-
+call-52	on	callIfNoReturn	{call f(?)} {call g(?)}	!2F003	-
+call-52	on	call	{call f(?)} {call g(?)}	!2F003	-
+call-52	off	select	{call f(?)} {call g(?)}	!2F003	-
+call-52	off	callIfNoReturn	{call f(?)} {call g(?)}	!2F003	-
+call-52	off	call	{call f(?)} {call g(?)}	!2F003	-
+call-53	on	select	{call f('a\\'}', ?)}	!2F003	-
+call-53	on	callIfNoReturn	{call f('a\\'}', ?)}	!2F003	-
+call-53	on	call	{call f('a\\'}', ?)}	!2F003	-
+call-53	off	select	{call f('a\\'}', ?)}	select * from f('a\\'}', ?) as result	true
+call-53	off	callIfNoReturn	{call f('a\\'}', ?)}	call f('a\\'}', ?)	true
+call-53	off	call	{call f('a\\'}', ?)}	call f('a\\'}', ?)	true
+call-54	on	select	{? = call f(?) }	select * from f(?,?)  as result	true
+call-54	on	callIfNoReturn	{? = call f(?) }	select * from f(?,?)  as result	true
+call-54	on	call	{? = call f(?) }	call f(?,?) 	true
+call-54	off	select	{? = call f(?) }	select * from f(?,?)  as result	true
+call-54	off	callIfNoReturn	{? = call f(?) }	select * from f(?,?)  as result	true
+call-54	off	call	{? = call f(?) }	call f(?,?) 	true
+call-55	on	select	{? = call f(a => ?)}	select * from f(?,a => ?) as result	true
+call-55	on	callIfNoReturn	{? = call f(a => ?)}	select * from f(?,a => ?) as result	true
+call-55	on	call	{? = call f(a => ?)}	call f(?,a => ?)	true
+call-55	off	select	{? = call f(a => ?)}	select * from f(?,a => ?) as result	true
+call-55	off	callIfNoReturn	{? = call f(a => ?)}	select * from f(?,a => ?) as result	true
+call-55	off	call	{? = call f(a => ?)}	call f(?,a => ?)	true
+call-56	on	select	{call f(?)}\n	select * from f(?) as result	true
+call-56	on	callIfNoReturn	{call f(?)}\n	call f(?)	true
+call-56	on	call	{call f(?)}\n	call f(?)	true
+call-56	off	select	{call f(?)}\n	select * from f(?) as result	true
+call-56	off	callIfNoReturn	{call f(?)}\n	call f(?)	true
+call-56	off	call	{call f(?)}\n	call f(?)	true
+call-57	on	select	{? = call f ( ? ) }	select * from f (?, ? )  as result	true
+call-57	on	callIfNoReturn	{? = call f ( ? ) }	select * from f (?, ? )  as result	true
+call-57	on	call	{? = call f ( ? ) }	call f (?, ? ) 	true
+call-57	off	select	{? = call f ( ? ) }	select * from f (?, ? )  as result	true
+call-57	off	callIfNoReturn	{? = call f ( ? ) }	select * from f (?, ? )  as result	true
+call-57	off	call	{? = call f ( ? ) }	call f (?, ? ) 	true
+call-58	on	select	{ ?= CALL f ( ) }	select * from f (? )  as result	true
+call-58	on	callIfNoReturn	{ ?= CALL f ( ) }	select * from f (? )  as result	true
+call-58	on	call	{ ?= CALL f ( ) }	call f (? ) 	true
+call-58	off	select	{ ?= CALL f ( ) }	select * from f (? )  as result	true
+call-58	off	callIfNoReturn	{ ?= CALL f ( ) }	select * from f (? )  as result	true
+call-58	off	call	{ ?= CALL f ( ) }	call f (? ) 	true
+call-59	on	select	{c}	!2F003	-
+call-59	on	callIfNoReturn	{c}	!2F003	-
+call-59	on	call	{c}	!2F003	-
+call-59	off	select	{c}	!2F003	-
+call-59	off	callIfNoReturn	{c}	!2F003	-
+call-59	off	call	{c}	!2F003	-
+call-60	on	select	{C all}	!2F003	-
+call-60	on	callIfNoReturn	{C all}	!2F003	-
+call-60	on	call	{C all}	!2F003	-
+call-60	off	select	{C all}	!2F003	-
+call-60	off	callIfNoReturn	{C all}	!2F003	-
+call-60	off	call	{C all}	!2F003	-

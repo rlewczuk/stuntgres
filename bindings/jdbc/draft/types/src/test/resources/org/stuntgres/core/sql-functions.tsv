@@ -1,0 +1,482 @@
+#id	sql	nativeSQL or !SQLState
+abs/0	SELECT {fn abs()}	SELECT abs()
+abs/1	SELECT {fn abs(a1)}	SELECT abs(a1)
+abs/2	SELECT {fn abs(a1, a2)}	SELECT abs(a1, a2)
+abs/3	SELECT {fn abs(a1, a2, a3)}	SELECT abs(a1, a2, a3)
+abs/4	SELECT {fn abs(a1, a2, a3, a4)}	SELECT abs(a1, a2, a3, a4)
+abs/5	SELECT {fn abs(a1, a2, a3, a4, a5)}	SELECT abs(a1, a2, a3, a4, a5)
+acos/0	SELECT {fn acos()}	SELECT acos()
+acos/1	SELECT {fn acos(a1)}	SELECT acos(a1)
+acos/2	SELECT {fn acos(a1, a2)}	SELECT acos(a1, a2)
+acos/3	SELECT {fn acos(a1, a2, a3)}	SELECT acos(a1, a2, a3)
+acos/4	SELECT {fn acos(a1, a2, a3, a4)}	SELECT acos(a1, a2, a3, a4)
+acos/5	SELECT {fn acos(a1, a2, a3, a4, a5)}	SELECT acos(a1, a2, a3, a4, a5)
+asin/0	SELECT {fn asin()}	SELECT asin()
+asin/1	SELECT {fn asin(a1)}	SELECT asin(a1)
+asin/2	SELECT {fn asin(a1, a2)}	SELECT asin(a1, a2)
+asin/3	SELECT {fn asin(a1, a2, a3)}	SELECT asin(a1, a2, a3)
+asin/4	SELECT {fn asin(a1, a2, a3, a4)}	SELECT asin(a1, a2, a3, a4)
+asin/5	SELECT {fn asin(a1, a2, a3, a4, a5)}	SELECT asin(a1, a2, a3, a4, a5)
+atan/0	SELECT {fn atan()}	SELECT atan()
+atan/1	SELECT {fn atan(a1)}	SELECT atan(a1)
+atan/2	SELECT {fn atan(a1, a2)}	SELECT atan(a1, a2)
+atan/3	SELECT {fn atan(a1, a2, a3)}	SELECT atan(a1, a2, a3)
+atan/4	SELECT {fn atan(a1, a2, a3, a4)}	SELECT atan(a1, a2, a3, a4)
+atan/5	SELECT {fn atan(a1, a2, a3, a4, a5)}	SELECT atan(a1, a2, a3, a4, a5)
+atan2/0	SELECT {fn atan2()}	SELECT atan2()
+atan2/1	SELECT {fn atan2(a1)}	SELECT atan2(a1)
+atan2/2	SELECT {fn atan2(a1, a2)}	SELECT atan2(a1, a2)
+atan2/3	SELECT {fn atan2(a1, a2, a3)}	SELECT atan2(a1, a2, a3)
+atan2/4	SELECT {fn atan2(a1, a2, a3, a4)}	SELECT atan2(a1, a2, a3, a4)
+atan2/5	SELECT {fn atan2(a1, a2, a3, a4, a5)}	SELECT atan2(a1, a2, a3, a4, a5)
+ceiling/0	SELECT {fn ceiling()}	!42601
+ceiling/1	SELECT {fn ceiling(a1)}	SELECT ceil(a1)
+ceiling/2	SELECT {fn ceiling(a1, a2)}	!42601
+ceiling/3	SELECT {fn ceiling(a1, a2, a3)}	!42601
+ceiling/4	SELECT {fn ceiling(a1, a2, a3, a4)}	!42601
+ceiling/5	SELECT {fn ceiling(a1, a2, a3, a4, a5)}	!42601
+cos/0	SELECT {fn cos()}	SELECT cos()
+cos/1	SELECT {fn cos(a1)}	SELECT cos(a1)
+cos/2	SELECT {fn cos(a1, a2)}	SELECT cos(a1, a2)
+cos/3	SELECT {fn cos(a1, a2, a3)}	SELECT cos(a1, a2, a3)
+cos/4	SELECT {fn cos(a1, a2, a3, a4)}	SELECT cos(a1, a2, a3, a4)
+cos/5	SELECT {fn cos(a1, a2, a3, a4, a5)}	SELECT cos(a1, a2, a3, a4, a5)
+cot/0	SELECT {fn cot()}	SELECT cot()
+cot/1	SELECT {fn cot(a1)}	SELECT cot(a1)
+cot/2	SELECT {fn cot(a1, a2)}	SELECT cot(a1, a2)
+cot/3	SELECT {fn cot(a1, a2, a3)}	SELECT cot(a1, a2, a3)
+cot/4	SELECT {fn cot(a1, a2, a3, a4)}	SELECT cot(a1, a2, a3, a4)
+cot/5	SELECT {fn cot(a1, a2, a3, a4, a5)}	SELECT cot(a1, a2, a3, a4, a5)
+degrees/0	SELECT {fn degrees()}	SELECT degrees()
+degrees/1	SELECT {fn degrees(a1)}	SELECT degrees(a1)
+degrees/2	SELECT {fn degrees(a1, a2)}	SELECT degrees(a1, a2)
+degrees/3	SELECT {fn degrees(a1, a2, a3)}	SELECT degrees(a1, a2, a3)
+degrees/4	SELECT {fn degrees(a1, a2, a3, a4)}	SELECT degrees(a1, a2, a3, a4)
+degrees/5	SELECT {fn degrees(a1, a2, a3, a4, a5)}	SELECT degrees(a1, a2, a3, a4, a5)
+exp/0	SELECT {fn exp()}	SELECT exp()
+exp/1	SELECT {fn exp(a1)}	SELECT exp(a1)
+exp/2	SELECT {fn exp(a1, a2)}	SELECT exp(a1, a2)
+exp/3	SELECT {fn exp(a1, a2, a3)}	SELECT exp(a1, a2, a3)
+exp/4	SELECT {fn exp(a1, a2, a3, a4)}	SELECT exp(a1, a2, a3, a4)
+exp/5	SELECT {fn exp(a1, a2, a3, a4, a5)}	SELECT exp(a1, a2, a3, a4, a5)
+floor/0	SELECT {fn floor()}	SELECT floor()
+floor/1	SELECT {fn floor(a1)}	SELECT floor(a1)
+floor/2	SELECT {fn floor(a1, a2)}	SELECT floor(a1, a2)
+floor/3	SELECT {fn floor(a1, a2, a3)}	SELECT floor(a1, a2, a3)
+floor/4	SELECT {fn floor(a1, a2, a3, a4)}	SELECT floor(a1, a2, a3, a4)
+floor/5	SELECT {fn floor(a1, a2, a3, a4, a5)}	SELECT floor(a1, a2, a3, a4, a5)
+log/0	SELECT {fn log()}	!42601
+log/1	SELECT {fn log(a1)}	SELECT ln(a1)
+log/2	SELECT {fn log(a1, a2)}	!42601
+log/3	SELECT {fn log(a1, a2, a3)}	!42601
+log/4	SELECT {fn log(a1, a2, a3, a4)}	!42601
+log/5	SELECT {fn log(a1, a2, a3, a4, a5)}	!42601
+log10/0	SELECT {fn log10()}	!42601
+log10/1	SELECT {fn log10(a1)}	SELECT log(a1)
+log10/2	SELECT {fn log10(a1, a2)}	!42601
+log10/3	SELECT {fn log10(a1, a2, a3)}	!42601
+log10/4	SELECT {fn log10(a1, a2, a3, a4)}	!42601
+log10/5	SELECT {fn log10(a1, a2, a3, a4, a5)}	!42601
+mod/0	SELECT {fn mod()}	SELECT mod()
+mod/1	SELECT {fn mod(a1)}	SELECT mod(a1)
+mod/2	SELECT {fn mod(a1, a2)}	SELECT mod(a1, a2)
+mod/3	SELECT {fn mod(a1, a2, a3)}	SELECT mod(a1, a2, a3)
+mod/4	SELECT {fn mod(a1, a2, a3, a4)}	SELECT mod(a1, a2, a3, a4)
+mod/5	SELECT {fn mod(a1, a2, a3, a4, a5)}	SELECT mod(a1, a2, a3, a4, a5)
+pi/0	SELECT {fn pi()}	SELECT pi()
+pi/1	SELECT {fn pi(a1)}	SELECT pi(a1)
+pi/2	SELECT {fn pi(a1, a2)}	SELECT pi(a1, a2)
+pi/3	SELECT {fn pi(a1, a2, a3)}	SELECT pi(a1, a2, a3)
+pi/4	SELECT {fn pi(a1, a2, a3, a4)}	SELECT pi(a1, a2, a3, a4)
+pi/5	SELECT {fn pi(a1, a2, a3, a4, a5)}	SELECT pi(a1, a2, a3, a4, a5)
+power/0	SELECT {fn power()}	!42601
+power/1	SELECT {fn power(a1)}	!42601
+power/2	SELECT {fn power(a1, a2)}	SELECT pow(a1, a2)
+power/3	SELECT {fn power(a1, a2, a3)}	!42601
+power/4	SELECT {fn power(a1, a2, a3, a4)}	!42601
+power/5	SELECT {fn power(a1, a2, a3, a4, a5)}	!42601
+radians/0	SELECT {fn radians()}	SELECT radians()
+radians/1	SELECT {fn radians(a1)}	SELECT radians(a1)
+radians/2	SELECT {fn radians(a1, a2)}	SELECT radians(a1, a2)
+radians/3	SELECT {fn radians(a1, a2, a3)}	SELECT radians(a1, a2, a3)
+radians/4	SELECT {fn radians(a1, a2, a3, a4)}	SELECT radians(a1, a2, a3, a4)
+radians/5	SELECT {fn radians(a1, a2, a3, a4, a5)}	SELECT radians(a1, a2, a3, a4, a5)
+rand/0	SELECT {fn rand()}	SELECT rand()
+rand/1	SELECT {fn rand(a1)}	SELECT rand(a1)
+rand/2	SELECT {fn rand(a1, a2)}	SELECT rand(a1, a2)
+rand/3	SELECT {fn rand(a1, a2, a3)}	SELECT rand(a1, a2, a3)
+rand/4	SELECT {fn rand(a1, a2, a3, a4)}	SELECT rand(a1, a2, a3, a4)
+rand/5	SELECT {fn rand(a1, a2, a3, a4, a5)}	SELECT rand(a1, a2, a3, a4, a5)
+round/0	SELECT {fn round()}	SELECT round()
+round/1	SELECT {fn round(a1)}	SELECT round(a1)
+round/2	SELECT {fn round(a1, a2)}	SELECT round(a1, a2)
+round/3	SELECT {fn round(a1, a2, a3)}	SELECT round(a1, a2, a3)
+round/4	SELECT {fn round(a1, a2, a3, a4)}	SELECT round(a1, a2, a3, a4)
+round/5	SELECT {fn round(a1, a2, a3, a4, a5)}	SELECT round(a1, a2, a3, a4, a5)
+sign/0	SELECT {fn sign()}	SELECT sign()
+sign/1	SELECT {fn sign(a1)}	SELECT sign(a1)
+sign/2	SELECT {fn sign(a1, a2)}	SELECT sign(a1, a2)
+sign/3	SELECT {fn sign(a1, a2, a3)}	SELECT sign(a1, a2, a3)
+sign/4	SELECT {fn sign(a1, a2, a3, a4)}	SELECT sign(a1, a2, a3, a4)
+sign/5	SELECT {fn sign(a1, a2, a3, a4, a5)}	SELECT sign(a1, a2, a3, a4, a5)
+sin/0	SELECT {fn sin()}	SELECT sin()
+sin/1	SELECT {fn sin(a1)}	SELECT sin(a1)
+sin/2	SELECT {fn sin(a1, a2)}	SELECT sin(a1, a2)
+sin/3	SELECT {fn sin(a1, a2, a3)}	SELECT sin(a1, a2, a3)
+sin/4	SELECT {fn sin(a1, a2, a3, a4)}	SELECT sin(a1, a2, a3, a4)
+sin/5	SELECT {fn sin(a1, a2, a3, a4, a5)}	SELECT sin(a1, a2, a3, a4, a5)
+sqrt/0	SELECT {fn sqrt()}	SELECT sqrt()
+sqrt/1	SELECT {fn sqrt(a1)}	SELECT sqrt(a1)
+sqrt/2	SELECT {fn sqrt(a1, a2)}	SELECT sqrt(a1, a2)
+sqrt/3	SELECT {fn sqrt(a1, a2, a3)}	SELECT sqrt(a1, a2, a3)
+sqrt/4	SELECT {fn sqrt(a1, a2, a3, a4)}	SELECT sqrt(a1, a2, a3, a4)
+sqrt/5	SELECT {fn sqrt(a1, a2, a3, a4, a5)}	SELECT sqrt(a1, a2, a3, a4, a5)
+tan/0	SELECT {fn tan()}	SELECT tan()
+tan/1	SELECT {fn tan(a1)}	SELECT tan(a1)
+tan/2	SELECT {fn tan(a1, a2)}	SELECT tan(a1, a2)
+tan/3	SELECT {fn tan(a1, a2, a3)}	SELECT tan(a1, a2, a3)
+tan/4	SELECT {fn tan(a1, a2, a3, a4)}	SELECT tan(a1, a2, a3, a4)
+tan/5	SELECT {fn tan(a1, a2, a3, a4, a5)}	SELECT tan(a1, a2, a3, a4, a5)
+truncate/0	SELECT {fn truncate()}	!42601
+truncate/1	SELECT {fn truncate(a1)}	!42601
+truncate/2	SELECT {fn truncate(a1, a2)}	SELECT trunc(a1, a2)
+truncate/3	SELECT {fn truncate(a1, a2, a3)}	!42601
+truncate/4	SELECT {fn truncate(a1, a2, a3, a4)}	!42601
+truncate/5	SELECT {fn truncate(a1, a2, a3, a4, a5)}	!42601
+ascii/0	SELECT {fn ascii()}	SELECT ascii()
+ascii/1	SELECT {fn ascii(a1)}	SELECT ascii(a1)
+ascii/2	SELECT {fn ascii(a1, a2)}	SELECT ascii(a1, a2)
+ascii/3	SELECT {fn ascii(a1, a2, a3)}	SELECT ascii(a1, a2, a3)
+ascii/4	SELECT {fn ascii(a1, a2, a3, a4)}	SELECT ascii(a1, a2, a3, a4)
+ascii/5	SELECT {fn ascii(a1, a2, a3, a4, a5)}	SELECT ascii(a1, a2, a3, a4, a5)
+char/0	SELECT {fn char()}	!42601
+char/1	SELECT {fn char(a1)}	SELECT chr(a1)
+char/2	SELECT {fn char(a1, a2)}	!42601
+char/3	SELECT {fn char(a1, a2, a3)}	!42601
+char/4	SELECT {fn char(a1, a2, a3, a4)}	!42601
+char/5	SELECT {fn char(a1, a2, a3, a4, a5)}	!42601
+concat/0	SELECT {fn concat()}	SELECT ()
+concat/1	SELECT {fn concat(a1)}	SELECT (a1)
+concat/2	SELECT {fn concat(a1, a2)}	SELECT (a1|| a2)
+concat/3	SELECT {fn concat(a1, a2, a3)}	SELECT (a1|| a2|| a3)
+concat/4	SELECT {fn concat(a1, a2, a3, a4)}	SELECT (a1|| a2|| a3|| a4)
+concat/5	SELECT {fn concat(a1, a2, a3, a4, a5)}	SELECT (a1|| a2|| a3|| a4|| a5)
+insert/0	SELECT {fn insert()}	!42601
+insert/1	SELECT {fn insert(a1)}	!42601
+insert/2	SELECT {fn insert(a1, a2)}	!42601
+insert/3	SELECT {fn insert(a1, a2, a3)}	!42601
+insert/4	SELECT {fn insert(a1, a2, a3, a4)}	SELECT overlay(a1 placing  a4 from  a2 for  a3)
+insert/5	SELECT {fn insert(a1, a2, a3, a4, a5)}	!42601
+lcase/0	SELECT {fn lcase()}	!42601
+lcase/1	SELECT {fn lcase(a1)}	SELECT lower(a1)
+lcase/2	SELECT {fn lcase(a1, a2)}	!42601
+lcase/3	SELECT {fn lcase(a1, a2, a3)}	!42601
+lcase/4	SELECT {fn lcase(a1, a2, a3, a4)}	!42601
+lcase/5	SELECT {fn lcase(a1, a2, a3, a4, a5)}	!42601
+left/0	SELECT {fn left()}	!42601
+left/1	SELECT {fn left(a1)}	!42601
+left/2	SELECT {fn left(a1, a2)}	SELECT substring(a1 for  a2)
+left/3	SELECT {fn left(a1, a2, a3)}	!42601
+left/4	SELECT {fn left(a1, a2, a3, a4)}	!42601
+left/5	SELECT {fn left(a1, a2, a3, a4, a5)}	!42601
+length/0	SELECT {fn length()}	!42601
+length/1	SELECT {fn length(a1)}	SELECT length(trim(trailing from a1))
+length/2	SELECT {fn length(a1, a2)}	!42601
+length/3	SELECT {fn length(a1, a2, a3)}	!42601
+length/4	SELECT {fn length(a1, a2, a3, a4)}	!42601
+length/5	SELECT {fn length(a1, a2, a3, a4, a5)}	!42601
+locate/0	SELECT {fn locate()}	!42601
+locate/1	SELECT {fn locate(a1)}	!42601
+locate/2	SELECT {fn locate(a1, a2)}	SELECT position(a1 in  a2)
+locate/3	SELECT {fn locate(a1, a2, a3)}	SELECT ( a3*sign(position(a1 in substring( a2 from  a3)))+position(a1 in substring( a2 from  a3)))
+locate/4	SELECT {fn locate(a1, a2, a3, a4)}	!42601
+locate/5	SELECT {fn locate(a1, a2, a3, a4, a5)}	!42601
+ltrim/0	SELECT {fn ltrim()}	!42601
+ltrim/1	SELECT {fn ltrim(a1)}	SELECT trim(leading from a1)
+ltrim/2	SELECT {fn ltrim(a1, a2)}	!42601
+ltrim/3	SELECT {fn ltrim(a1, a2, a3)}	!42601
+ltrim/4	SELECT {fn ltrim(a1, a2, a3, a4)}	!42601
+ltrim/5	SELECT {fn ltrim(a1, a2, a3, a4, a5)}	!42601
+repeat/0	SELECT {fn repeat()}	SELECT repeat()
+repeat/1	SELECT {fn repeat(a1)}	SELECT repeat(a1)
+repeat/2	SELECT {fn repeat(a1, a2)}	SELECT repeat(a1, a2)
+repeat/3	SELECT {fn repeat(a1, a2, a3)}	SELECT repeat(a1, a2, a3)
+repeat/4	SELECT {fn repeat(a1, a2, a3, a4)}	SELECT repeat(a1, a2, a3, a4)
+repeat/5	SELECT {fn repeat(a1, a2, a3, a4, a5)}	SELECT repeat(a1, a2, a3, a4, a5)
+replace/0	SELECT {fn replace()}	SELECT replace()
+replace/1	SELECT {fn replace(a1)}	SELECT replace(a1)
+replace/2	SELECT {fn replace(a1, a2)}	SELECT replace(a1, a2)
+replace/3	SELECT {fn replace(a1, a2, a3)}	SELECT replace(a1, a2, a3)
+replace/4	SELECT {fn replace(a1, a2, a3, a4)}	SELECT replace(a1, a2, a3, a4)
+replace/5	SELECT {fn replace(a1, a2, a3, a4, a5)}	SELECT replace(a1, a2, a3, a4, a5)
+right/0	SELECT {fn right()}	!42601
+right/1	SELECT {fn right(a1)}	!42601
+right/2	SELECT {fn right(a1, a2)}	SELECT substring(a1 from (length(a1)+1- a2))
+right/3	SELECT {fn right(a1, a2, a3)}	!42601
+right/4	SELECT {fn right(a1, a2, a3, a4)}	!42601
+right/5	SELECT {fn right(a1, a2, a3, a4, a5)}	!42601
+rtrim/0	SELECT {fn rtrim()}	!42601
+rtrim/1	SELECT {fn rtrim(a1)}	SELECT trim(trailing from a1)
+rtrim/2	SELECT {fn rtrim(a1, a2)}	!42601
+rtrim/3	SELECT {fn rtrim(a1, a2, a3)}	!42601
+rtrim/4	SELECT {fn rtrim(a1, a2, a3, a4)}	!42601
+rtrim/5	SELECT {fn rtrim(a1, a2, a3, a4, a5)}	!42601
+space/0	SELECT {fn space()}	!42601
+space/1	SELECT {fn space(a1)}	SELECT repeat(' ',a1)
+space/2	SELECT {fn space(a1, a2)}	!42601
+space/3	SELECT {fn space(a1, a2, a3)}	!42601
+space/4	SELECT {fn space(a1, a2, a3, a4)}	!42601
+space/5	SELECT {fn space(a1, a2, a3, a4, a5)}	!42601
+substring/0	SELECT {fn substring()}	!42601
+substring/1	SELECT {fn substring(a1)}	!42601
+substring/2	SELECT {fn substring(a1, a2)}	SELECT substr(a1, a2)
+substring/3	SELECT {fn substring(a1, a2, a3)}	SELECT substr(a1, a2, a3)
+substring/4	SELECT {fn substring(a1, a2, a3, a4)}	!42601
+substring/5	SELECT {fn substring(a1, a2, a3, a4, a5)}	!42601
+ucase/0	SELECT {fn ucase()}	!42601
+ucase/1	SELECT {fn ucase(a1)}	SELECT upper(a1)
+ucase/2	SELECT {fn ucase(a1, a2)}	!42601
+ucase/3	SELECT {fn ucase(a1, a2, a3)}	!42601
+ucase/4	SELECT {fn ucase(a1, a2, a3, a4)}	!42601
+ucase/5	SELECT {fn ucase(a1, a2, a3, a4, a5)}	!42601
+curdate/0	SELECT {fn curdate()}	SELECT current_date
+curdate/1	SELECT {fn curdate(a1)}	!42601
+curdate/2	SELECT {fn curdate(a1, a2)}	!42601
+curdate/3	SELECT {fn curdate(a1, a2, a3)}	!42601
+curdate/4	SELECT {fn curdate(a1, a2, a3, a4)}	!42601
+curdate/5	SELECT {fn curdate(a1, a2, a3, a4, a5)}	!42601
+curtime/0	SELECT {fn curtime()}	SELECT current_time
+curtime/1	SELECT {fn curtime(a1)}	!42601
+curtime/2	SELECT {fn curtime(a1, a2)}	!42601
+curtime/3	SELECT {fn curtime(a1, a2, a3)}	!42601
+curtime/4	SELECT {fn curtime(a1, a2, a3, a4)}	!42601
+curtime/5	SELECT {fn curtime(a1, a2, a3, a4, a5)}	!42601
+dayname/0	SELECT {fn dayname()}	!42601
+dayname/1	SELECT {fn dayname(a1)}	SELECT to_char(a1,'Day')
+dayname/2	SELECT {fn dayname(a1, a2)}	!42601
+dayname/3	SELECT {fn dayname(a1, a2, a3)}	!42601
+dayname/4	SELECT {fn dayname(a1, a2, a3, a4)}	!42601
+dayname/5	SELECT {fn dayname(a1, a2, a3, a4, a5)}	!42601
+dayofmonth/0	SELECT {fn dayofmonth()}	!42601
+dayofmonth/1	SELECT {fn dayofmonth(a1)}	SELECT extract(day from a1)
+dayofmonth/2	SELECT {fn dayofmonth(a1, a2)}	!42601
+dayofmonth/3	SELECT {fn dayofmonth(a1, a2, a3)}	!42601
+dayofmonth/4	SELECT {fn dayofmonth(a1, a2, a3, a4)}	!42601
+dayofmonth/5	SELECT {fn dayofmonth(a1, a2, a3, a4, a5)}	!42601
+dayofweek/0	SELECT {fn dayofweek()}	!42601
+dayofweek/1	SELECT {fn dayofweek(a1)}	SELECT extract(dow from a1)+1
+dayofweek/2	SELECT {fn dayofweek(a1, a2)}	!42601
+dayofweek/3	SELECT {fn dayofweek(a1, a2, a3)}	!42601
+dayofweek/4	SELECT {fn dayofweek(a1, a2, a3, a4)}	!42601
+dayofweek/5	SELECT {fn dayofweek(a1, a2, a3, a4, a5)}	!42601
+dayofyear/0	SELECT {fn dayofyear()}	!42601
+dayofyear/1	SELECT {fn dayofyear(a1)}	SELECT extract(doy from a1)
+dayofyear/2	SELECT {fn dayofyear(a1, a2)}	!42601
+dayofyear/3	SELECT {fn dayofyear(a1, a2, a3)}	!42601
+dayofyear/4	SELECT {fn dayofyear(a1, a2, a3, a4)}	!42601
+dayofyear/5	SELECT {fn dayofyear(a1, a2, a3, a4, a5)}	!42601
+hour/0	SELECT {fn hour()}	!42601
+hour/1	SELECT {fn hour(a1)}	SELECT extract(hour from a1)
+hour/2	SELECT {fn hour(a1, a2)}	!42601
+hour/3	SELECT {fn hour(a1, a2, a3)}	!42601
+hour/4	SELECT {fn hour(a1, a2, a3, a4)}	!42601
+hour/5	SELECT {fn hour(a1, a2, a3, a4, a5)}	!42601
+minute/0	SELECT {fn minute()}	!42601
+minute/1	SELECT {fn minute(a1)}	SELECT extract(minute from a1)
+minute/2	SELECT {fn minute(a1, a2)}	!42601
+minute/3	SELECT {fn minute(a1, a2, a3)}	!42601
+minute/4	SELECT {fn minute(a1, a2, a3, a4)}	!42601
+minute/5	SELECT {fn minute(a1, a2, a3, a4, a5)}	!42601
+month/0	SELECT {fn month()}	!42601
+month/1	SELECT {fn month(a1)}	SELECT extract(month from a1)
+month/2	SELECT {fn month(a1, a2)}	!42601
+month/3	SELECT {fn month(a1, a2, a3)}	!42601
+month/4	SELECT {fn month(a1, a2, a3, a4)}	!42601
+month/5	SELECT {fn month(a1, a2, a3, a4, a5)}	!42601
+monthname/0	SELECT {fn monthname()}	!42601
+monthname/1	SELECT {fn monthname(a1)}	SELECT to_char(a1,'Month')
+monthname/2	SELECT {fn monthname(a1, a2)}	!42601
+monthname/3	SELECT {fn monthname(a1, a2, a3)}	!42601
+monthname/4	SELECT {fn monthname(a1, a2, a3, a4)}	!42601
+monthname/5	SELECT {fn monthname(a1, a2, a3, a4, a5)}	!42601
+now/0	SELECT {fn now()}	SELECT now()
+now/1	SELECT {fn now(a1)}	SELECT now(a1)
+now/2	SELECT {fn now(a1, a2)}	SELECT now(a1, a2)
+now/3	SELECT {fn now(a1, a2, a3)}	SELECT now(a1, a2, a3)
+now/4	SELECT {fn now(a1, a2, a3, a4)}	SELECT now(a1, a2, a3, a4)
+now/5	SELECT {fn now(a1, a2, a3, a4, a5)}	SELECT now(a1, a2, a3, a4, a5)
+quarter/0	SELECT {fn quarter()}	!42601
+quarter/1	SELECT {fn quarter(a1)}	SELECT extract(quarter from a1)
+quarter/2	SELECT {fn quarter(a1, a2)}	!42601
+quarter/3	SELECT {fn quarter(a1, a2, a3)}	!42601
+quarter/4	SELECT {fn quarter(a1, a2, a3, a4)}	!42601
+quarter/5	SELECT {fn quarter(a1, a2, a3, a4, a5)}	!42601
+second/0	SELECT {fn second()}	!42601
+second/1	SELECT {fn second(a1)}	SELECT extract(second from a1)
+second/2	SELECT {fn second(a1, a2)}	!42601
+second/3	SELECT {fn second(a1, a2, a3)}	!42601
+second/4	SELECT {fn second(a1, a2, a3, a4)}	!42601
+second/5	SELECT {fn second(a1, a2, a3, a4, a5)}	!42601
+week/0	SELECT {fn week()}	!42601
+week/1	SELECT {fn week(a1)}	SELECT extract(week from a1)
+week/2	SELECT {fn week(a1, a2)}	!42601
+week/3	SELECT {fn week(a1, a2, a3)}	!42601
+week/4	SELECT {fn week(a1, a2, a3, a4)}	!42601
+week/5	SELECT {fn week(a1, a2, a3, a4, a5)}	!42601
+year/0	SELECT {fn year()}	!42601
+year/1	SELECT {fn year(a1)}	SELECT extract(year from a1)
+year/2	SELECT {fn year(a1, a2)}	!42601
+year/3	SELECT {fn year(a1, a2, a3)}	!42601
+year/4	SELECT {fn year(a1, a2, a3, a4)}	!42601
+year/5	SELECT {fn year(a1, a2, a3, a4, a5)}	!42601
+timestampadd/0	SELECT {fn timestampadd()}	!42601
+timestampadd/1	SELECT {fn timestampadd(a1)}	!42601
+timestampadd/2	SELECT {fn timestampadd(a1, a2)}	!42601
+timestampadd/3	SELECT {fn timestampadd(a1, a2, a3)}	!42601
+timestampadd/4	SELECT {fn timestampadd(a1, a2, a3, a4)}	!42601
+timestampadd/5	SELECT {fn timestampadd(a1, a2, a3, a4, a5)}	!42601
+timestampdiff/0	SELECT {fn timestampdiff()}	!42601
+timestampdiff/1	SELECT {fn timestampdiff(a1)}	!42601
+timestampdiff/2	SELECT {fn timestampdiff(a1, a2)}	!42601
+timestampdiff/3	SELECT {fn timestampdiff(a1, a2, a3)}	!42601
+timestampdiff/4	SELECT {fn timestampdiff(a1, a2, a3, a4)}	!42601
+timestampdiff/5	SELECT {fn timestampdiff(a1, a2, a3, a4, a5)}	!42601
+database/0	SELECT {fn database()}	SELECT current_database()
+database/1	SELECT {fn database(a1)}	!42601
+database/2	SELECT {fn database(a1, a2)}	!42601
+database/3	SELECT {fn database(a1, a2, a3)}	!42601
+database/4	SELECT {fn database(a1, a2, a3, a4)}	!42601
+database/5	SELECT {fn database(a1, a2, a3, a4, a5)}	!42601
+ifnull/0	SELECT {fn ifnull()}	!42601
+ifnull/1	SELECT {fn ifnull(a1)}	!42601
+ifnull/2	SELECT {fn ifnull(a1, a2)}	SELECT coalesce(a1, a2)
+ifnull/3	SELECT {fn ifnull(a1, a2, a3)}	!42601
+ifnull/4	SELECT {fn ifnull(a1, a2, a3, a4)}	!42601
+ifnull/5	SELECT {fn ifnull(a1, a2, a3, a4, a5)}	!42601
+user/0	SELECT {fn user()}	SELECT user
+user/1	SELECT {fn user(a1)}	!42601
+user/2	SELECT {fn user(a1, a2)}	!42601
+user/3	SELECT {fn user(a1, a2, a3)}	!42601
+user/4	SELECT {fn user(a1, a2, a3, a4)}	!42601
+user/5	SELECT {fn user(a1, a2, a3, a4, a5)}	!42601
+convert/0	SELECT {fn convert()}	SELECT convert()
+convert/1	SELECT {fn convert(a1)}	SELECT convert(a1)
+convert/2	SELECT {fn convert(a1, a2)}	SELECT convert(a1, a2)
+convert/3	SELECT {fn convert(a1, a2, a3)}	SELECT convert(a1, a2, a3)
+convert/4	SELECT {fn convert(a1, a2, a3, a4)}	SELECT convert(a1, a2, a3, a4)
+convert/5	SELECT {fn convert(a1, a2, a3, a4, a5)}	SELECT convert(a1, a2, a3, a4, a5)
+char_length/0	SELECT {fn char_length()}	SELECT char_length()
+char_length/1	SELECT {fn char_length(a1)}	SELECT char_length(a1)
+char_length/2	SELECT {fn char_length(a1, a2)}	SELECT char_length(a1, a2)
+char_length/3	SELECT {fn char_length(a1, a2, a3)}	SELECT char_length(a1, a2, a3)
+char_length/4	SELECT {fn char_length(a1, a2, a3, a4)}	SELECT char_length(a1, a2, a3, a4)
+char_length/5	SELECT {fn char_length(a1, a2, a3, a4, a5)}	SELECT char_length(a1, a2, a3, a4, a5)
+character_length/0	SELECT {fn character_length()}	SELECT character_length()
+character_length/1	SELECT {fn character_length(a1)}	SELECT character_length(a1)
+character_length/2	SELECT {fn character_length(a1, a2)}	SELECT character_length(a1, a2)
+character_length/3	SELECT {fn character_length(a1, a2, a3)}	SELECT character_length(a1, a2, a3)
+character_length/4	SELECT {fn character_length(a1, a2, a3, a4)}	SELECT character_length(a1, a2, a3, a4)
+character_length/5	SELECT {fn character_length(a1, a2, a3, a4, a5)}	SELECT character_length(a1, a2, a3, a4, a5)
+octet_length/0	SELECT {fn octet_length()}	SELECT octet_length()
+octet_length/1	SELECT {fn octet_length(a1)}	SELECT octet_length(a1)
+octet_length/2	SELECT {fn octet_length(a1, a2)}	SELECT octet_length(a1, a2)
+octet_length/3	SELECT {fn octet_length(a1, a2, a3)}	SELECT octet_length(a1, a2, a3)
+octet_length/4	SELECT {fn octet_length(a1, a2, a3, a4)}	SELECT octet_length(a1, a2, a3, a4)
+octet_length/5	SELECT {fn octet_length(a1, a2, a3, a4, a5)}	SELECT octet_length(a1, a2, a3, a4, a5)
+position/0	SELECT {fn position()}	SELECT position()
+position/1	SELECT {fn position(a1)}	SELECT position(a1)
+position/2	SELECT {fn position(a1, a2)}	SELECT position(a1, a2)
+position/3	SELECT {fn position(a1, a2, a3)}	SELECT position(a1, a2, a3)
+position/4	SELECT {fn position(a1, a2, a3, a4)}	SELECT position(a1, a2, a3, a4)
+position/5	SELECT {fn position(a1, a2, a3, a4, a5)}	SELECT position(a1, a2, a3, a4, a5)
+extract/0	SELECT {fn extract()}	SELECT extract()
+extract/1	SELECT {fn extract(a1)}	SELECT extract(a1)
+extract/2	SELECT {fn extract(a1, a2)}	SELECT extract(a1, a2)
+extract/3	SELECT {fn extract(a1, a2, a3)}	SELECT extract(a1, a2, a3)
+extract/4	SELECT {fn extract(a1, a2, a3, a4)}	SELECT extract(a1, a2, a3, a4)
+extract/5	SELECT {fn extract(a1, a2, a3, a4, a5)}	SELECT extract(a1, a2, a3, a4, a5)
+current_date/0	SELECT {fn current_date()}	SELECT current_date()
+current_date/1	SELECT {fn current_date(a1)}	SELECT current_date(a1)
+current_date/2	SELECT {fn current_date(a1, a2)}	SELECT current_date(a1, a2)
+current_date/3	SELECT {fn current_date(a1, a2, a3)}	SELECT current_date(a1, a2, a3)
+current_date/4	SELECT {fn current_date(a1, a2, a3, a4)}	SELECT current_date(a1, a2, a3, a4)
+current_date/5	SELECT {fn current_date(a1, a2, a3, a4, a5)}	SELECT current_date(a1, a2, a3, a4, a5)
+current_time/0	SELECT {fn current_time()}	SELECT current_time()
+current_time/1	SELECT {fn current_time(a1)}	SELECT current_time(a1)
+current_time/2	SELECT {fn current_time(a1, a2)}	SELECT current_time(a1, a2)
+current_time/3	SELECT {fn current_time(a1, a2, a3)}	SELECT current_time(a1, a2, a3)
+current_time/4	SELECT {fn current_time(a1, a2, a3, a4)}	SELECT current_time(a1, a2, a3, a4)
+current_time/5	SELECT {fn current_time(a1, a2, a3, a4, a5)}	SELECT current_time(a1, a2, a3, a4, a5)
+current_timestamp/0	SELECT {fn current_timestamp()}	SELECT current_timestamp()
+current_timestamp/1	SELECT {fn current_timestamp(a1)}	SELECT current_timestamp(a1)
+current_timestamp/2	SELECT {fn current_timestamp(a1, a2)}	SELECT current_timestamp(a1, a2)
+current_timestamp/3	SELECT {fn current_timestamp(a1, a2, a3)}	SELECT current_timestamp(a1, a2, a3)
+current_timestamp/4	SELECT {fn current_timestamp(a1, a2, a3, a4)}	SELECT current_timestamp(a1, a2, a3, a4)
+current_timestamp/5	SELECT {fn current_timestamp(a1, a2, a3, a4, a5)}	SELECT current_timestamp(a1, a2, a3, a4, a5)
+bit_length/0	SELECT {fn bit_length()}	SELECT bit_length()
+bit_length/1	SELECT {fn bit_length(a1)}	SELECT bit_length(a1)
+bit_length/2	SELECT {fn bit_length(a1, a2)}	SELECT bit_length(a1, a2)
+bit_length/3	SELECT {fn bit_length(a1, a2, a3)}	SELECT bit_length(a1, a2, a3)
+bit_length/4	SELECT {fn bit_length(a1, a2, a3, a4)}	SELECT bit_length(a1, a2, a3, a4)
+bit_length/5	SELECT {fn bit_length(a1, a2, a3, a4, a5)}	SELECT bit_length(a1, a2, a3, a4, a5)
+difference/0	SELECT {fn difference()}	SELECT difference()
+difference/1	SELECT {fn difference(a1)}	SELECT difference(a1)
+difference/2	SELECT {fn difference(a1, a2)}	SELECT difference(a1, a2)
+difference/3	SELECT {fn difference(a1, a2, a3)}	SELECT difference(a1, a2, a3)
+difference/4	SELECT {fn difference(a1, a2, a3, a4)}	SELECT difference(a1, a2, a3, a4)
+difference/5	SELECT {fn difference(a1, a2, a3, a4, a5)}	SELECT difference(a1, a2, a3, a4, a5)
+soundex/0	SELECT {fn soundex()}	SELECT soundex()
+soundex/1	SELECT {fn soundex(a1)}	SELECT soundex(a1)
+soundex/2	SELECT {fn soundex(a1, a2)}	SELECT soundex(a1, a2)
+soundex/3	SELECT {fn soundex(a1, a2, a3)}	SELECT soundex(a1, a2, a3)
+soundex/4	SELECT {fn soundex(a1, a2, a3, a4)}	SELECT soundex(a1, a2, a3, a4)
+soundex/5	SELECT {fn soundex(a1, a2, a3, a4, a5)}	SELECT soundex(a1, a2, a3, a4, a5)
+nosuchfunction/0	SELECT {fn nosuchfunction()}	SELECT nosuchfunction()
+nosuchfunction/1	SELECT {fn nosuchfunction(a1)}	SELECT nosuchfunction(a1)
+nosuchfunction/2	SELECT {fn nosuchfunction(a1, a2)}	SELECT nosuchfunction(a1, a2)
+nosuchfunction/3	SELECT {fn nosuchfunction(a1, a2, a3)}	SELECT nosuchfunction(a1, a2, a3)
+nosuchfunction/4	SELECT {fn nosuchfunction(a1, a2, a3, a4)}	SELECT nosuchfunction(a1, a2, a3, a4)
+nosuchfunction/5	SELECT {fn nosuchfunction(a1, a2, a3, a4, a5)}	SELECT nosuchfunction(a1, a2, a3, a4, a5)
+timestampadd/SQL_TSI_FRAC_SECOND	SELECT {fn timestampadd(SQL_TSI_FRAC_SECOND, n, ts)}	!0A000
+timestampdiff/SQL_TSI_FRAC_SECOND	SELECT {fn timestampdiff(SQL_TSI_FRAC_SECOND, t1, t2)}	!0A000
+timestampadd/SQL_TSI_SECOND	SELECT {fn timestampadd(SQL_TSI_SECOND, n, ts)}	SELECT (CAST( n||' second' as interval)+ ts)
+timestampdiff/SQL_TSI_SECOND	SELECT {fn timestampdiff(SQL_TSI_SECOND, t1, t2)}	SELECT extract( second from ( t2- t1))
+timestampadd/SQL_TSI_MINUTE	SELECT {fn timestampadd(SQL_TSI_MINUTE, n, ts)}	SELECT (CAST( n||' minute' as interval)+ ts)
+timestampdiff/SQL_TSI_MINUTE	SELECT {fn timestampdiff(SQL_TSI_MINUTE, t1, t2)}	SELECT extract( minute from ( t2- t1))
+timestampadd/SQL_TSI_HOUR	SELECT {fn timestampadd(SQL_TSI_HOUR, n, ts)}	SELECT (CAST( n||' hour' as interval)+ ts)
+timestampdiff/SQL_TSI_HOUR	SELECT {fn timestampdiff(SQL_TSI_HOUR, t1, t2)}	SELECT extract( hour from ( t2- t1))
+timestampadd/SQL_TSI_DAY	SELECT {fn timestampadd(SQL_TSI_DAY, n, ts)}	SELECT (CAST( n||' day' as interval)+ ts)
+timestampdiff/SQL_TSI_DAY	SELECT {fn timestampdiff(SQL_TSI_DAY, t1, t2)}	SELECT extract( day from ( t2- t1))
+timestampadd/SQL_TSI_WEEK	SELECT {fn timestampadd(SQL_TSI_WEEK, n, ts)}	SELECT (CAST( n||' week' as interval)+ ts)
+timestampdiff/SQL_TSI_WEEK	SELECT {fn timestampdiff(SQL_TSI_WEEK, t1, t2)}	!42601
+timestampadd/SQL_TSI_MONTH	SELECT {fn timestampadd(SQL_TSI_MONTH, n, ts)}	SELECT (CAST( n||' month' as interval)+ ts)
+timestampdiff/SQL_TSI_MONTH	SELECT {fn timestampdiff(SQL_TSI_MONTH, t1, t2)}	!42601
+timestampadd/SQL_TSI_QUARTER	SELECT {fn timestampadd(SQL_TSI_QUARTER, n, ts)}	SELECT (CAST(( n::int * 3) || ' month' as interval)+ ts)
+timestampdiff/SQL_TSI_QUARTER	SELECT {fn timestampdiff(SQL_TSI_QUARTER, t1, t2)}	!42601
+timestampadd/SQL_TSI_YEAR	SELECT {fn timestampadd(SQL_TSI_YEAR, n, ts)}	SELECT (CAST( n||' year' as interval)+ ts)
+timestampdiff/SQL_TSI_YEAR	SELECT {fn timestampdiff(SQL_TSI_YEAR, t1, t2)}	!42601
+timestampadd/sql_tsi_day	SELECT {fn timestampadd(sql_tsi_day, n, ts)}	SELECT (CAST( n||' day' as interval)+ ts)
+timestampdiff/sql_tsi_day	SELECT {fn timestampdiff(sql_tsi_day, t1, t2)}	SELECT extract( day from ( t2- t1))
+timestampadd/Sql_Tsi_Hour	SELECT {fn timestampadd(Sql_Tsi_Hour, n, ts)}	SELECT (CAST( n||' hour' as interval)+ ts)
+timestampdiff/Sql_Tsi_Hour	SELECT {fn timestampdiff(Sql_Tsi_Hour, t1, t2)}	SELECT extract( hour from ( t2- t1))
+timestampadd/SQL_TSI_DAYS	SELECT {fn timestampadd(SQL_TSI_DAYS, n, ts)}	!0A000
+timestampdiff/SQL_TSI_DAYS	SELECT {fn timestampdiff(SQL_TSI_DAYS, t1, t2)}	!42601
+timestampadd/SQL_TSI_	SELECT {fn timestampadd(SQL_TSI_, n, ts)}	!0A000
+timestampdiff/SQL_TSI_	SELECT {fn timestampdiff(SQL_TSI_, t1, t2)}	!42601
+timestampadd/DAY	SELECT {fn timestampadd(DAY, n, ts)}	!42601
+timestampdiff/DAY	SELECT {fn timestampdiff(DAY, t1, t2)}	!42601
+timestampadd/SQL_TSIXDAY	SELECT {fn timestampadd(SQL_TSIXDAY, n, ts)}	!42601
+timestampdiff/SQL_TSIXDAY	SELECT {fn timestampdiff(SQL_TSIXDAY, t1, t2)}	!42601
+timestampadd/SQL_TSI_MILLISECOND	SELECT {fn timestampadd(SQL_TSI_MILLISECOND, n, ts)}	!0A000
+timestampdiff/SQL_TSI_MILLISECOND	SELECT {fn timestampdiff(SQL_TSI_MILLISECOND, t1, t2)}	!42601
+timestampadd/qSQL_TSI_DAYq	SELECT {fn timestampadd('SQL_TSI_DAY', n, ts)}	!42601
+timestampdiff/qSQL_TSI_DAYq	SELECT {fn timestampdiff('SQL_TSI_DAY', t1, t2)}	!42601
+timestampadd/SQL_TSI_DAY_sp	SELECT {fn timestampadd( SQL_TSI_DAY , n, ts)}	!42601
+timestampdiff/SQL_TSI_DAY_sp	SELECT {fn timestampdiff( SQL_TSI_DAY , t1, t2)}	!42601
+timestampadd/xxx_xxx_DAY	SELECT {fn timestampadd(xxx_xxx_DAY, n, ts)}	!42601
+timestampdiff/xxx_xxx_DAY	SELECT {fn timestampdiff(xxx_xxx_DAY, t1, t2)}	!42601
+timestampadd/SQL_TSI_dAy	SELECT {fn timestampadd(SQL_TSI_dAy, n, ts)}	SELECT (CAST( n||' day' as interval)+ ts)
+timestampdiff/SQL_TSI_dAy	SELECT {fn timestampdiff(SQL_TSI_dAy, t1, t2)}	SELECT extract( day from ( t2- t1))
+timestampadd/expr	SELECT {fn timestampadd(SQL_TSI_DAY, 1+2, {ts '2020-01-01 00:00:00'})}	SELECT (CAST( 1+2||' day' as interval)+ TIMESTAMP '2020-01-01 00:00:00')
+timestampadd/param	SELECT {fn timestampadd(SQL_TSI_QUARTER, ?, ?)}	SELECT (CAST(( $1::int * 3) || ' month' as interval)+ $2)
+timestampdiff/param	SELECT {fn timestampdiff(SQL_TSI_SECOND, ?, ?)}	SELECT extract( second from ( $1- $2))
