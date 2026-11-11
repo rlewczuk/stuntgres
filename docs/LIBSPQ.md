@@ -38,6 +38,8 @@ can include and link libpq and libspq together:
   `PQexec` → `SPQexec`, `PGconn` → `SPGconn`, `PGresult` → `SPGresult`,
   `PGRES_TUPLES_OK` → `SPGRES_TUPLES_OK`, `PG_DIAG_SQLSTATE` → `SPG_DIAG_SQLSTATE`,
   `PQTRANS_IDLE` → `SPQTRANS_IDLE`, `pg_encoding_to_char` → `spg_encoding_to_char`.
+  The added letter takes the case of the letter it precedes (`pgNotify` → `spgNotify`),
+  and a struct tag that starts with an underscore keeps it (`_SPQconninfoOption`).
 - Any other identifier gets `SPQ` (`SPQ_` for upper-case constants): `Oid` → `SPQOid`,
   `InvalidOid` → `SPQInvalidOid`, `ConnStatusType` → `SPQConnStatusType`,
   `ExecStatusType` → `SPQExecStatusType`, `CONNECTION_OK` → `SPQ_CONNECTION_OK`.
@@ -83,7 +85,10 @@ it. libspq has no stubs that pretend to work.
 Types and constants that go with these functions are all present: `SPGconn`,
 `SPGresult`, `SPGcancel`, `SPGnotify`, `SPQconninfoOption`, `SPQnoticeReceiver`,
 `SPQnoticeProcessor`, `spg_usec_time_t`, the status and polling enums, `SPGVerbosity`,
-`SPGContextVisibility`, `SPGPing`, the `SPG_DIAG_*` field codes.
+`SPGContextVisibility`, `SPGPing`, the `SPG_DIAG_*` field codes, `spg_int64`,
+`SPQ_OID_MAX`, `SPQatooid`, `SPQ_QUERY_PARAM_MAX_LIMIT` and the `SPQfreeNotify` macro.
+`libspq-compat.h` defines the libpq feature macros only for features libspq has
+(`LIBPQ_HAS_CHUNK_MODE`, `LIBPQ_HAS_CLOSE_PREPARED`, `LIBPQ_HAS_SOCKET_POLL`).
 
 ### Absent on purpose
 
@@ -231,7 +236,9 @@ nothing and reports success) and must be released with `SPQfreeCancel`.
   for that connection, never on another thread. They must return normally (no
   `longjmp`, no exception passing through) and must not call libspq functions for the
   same connection.
-- Without a receiver, notices are written to `stderr`, as in libpq.
+- Without a receiver, notices are written to `stderr`, as in libpq. A notice raised
+  while the session starts is delivered inside the connect call through these default
+  hooks, because a receiver cannot be installed before the connection exists.
 - Notifications become visible to `SPQnotifies` after `SPQconsumeInput` (or any
   blocking call). To wait for one, wait for the descriptor to become readable.
   `SPQsocketPoll(SPQsocket(conn), 1, 0, end_time)` is such a wait for callers that
@@ -268,7 +275,16 @@ nothing and reports success) and must be released with `SPQfreeCancel`.
 
 ## 6. Extensions (`libspq-ext.h`)
 
-Signatures are fixed by `docs/design/LIBSPQ-CABI.md`; the contract is:
+```c
+const char *SPQXversion(void);
+int SPQXclusterDrop(const char *host, const char *port, char *errbuf, int errbufsize);
+int SPQXreset(SPGconn *conn);
+int SPQXdump(SPGconn *conn, char **buffer, size_t *length);
+int SPQXrestore(SPGconn *conn, const char *buffer, size_t length);
+```
+
+The `int` functions return 1 on success and 0 on failure; a failure of a function that
+takes a connection leaves its message in `SPQerrorMessage`.
 
 | Function | Contract |
 |---|---|
@@ -279,8 +295,10 @@ Signatures are fixed by `docs/design/LIBSPQ-CABI.md`; the contract is:
 | `SPQXrestore(conn, …)` | Replace the connected database with the content of a dump. |
 
 Two further extensions are planned with low priority and are not required by a first
-binding: executing a portal with a row limit, and a queue from which notices can be
-pulled instead of receiving them through a callback.
+binding: executing a portal with a row limit (`SPQXsendBindPortal`,
+`SPQXsendExecutePortal`, their blocking forms and `SPQXresultSuspended`), and a queue
+from which notices can be pulled instead of receiving them through a callback
+(`SPQXsetNoticeQueue`, `SPQXnextNotice`).
 
 ## 7. Rules for binding authors
 
@@ -294,7 +312,8 @@ not advice.
 3. **Never use libspq in a forked child.** The runtime starts when the library is
    loaded and does not survive `fork()`. Load the library lazily (at first connect,
    not at import) and connect after forking. In a child of a process that had loaded
-   it, connection attempts fail with a clear message, and `SPQfinish` / `SPQclear`
+   it, connection attempts fail with `libspq cannot be used in a process forked after
+   the library was loaded`, `SPQcancel` does nothing, and `SPQfinish` / `SPQclear`
    only release memory; nothing hangs. Engine data is per process in any case.
 4. **Load with signals blocked.** Block all signals on the loading thread around the
    `dlopen`, then restore the mask, so that process-directed signals are not delivered
@@ -364,7 +383,9 @@ packages underneath (`internal/pgsession`, `bindings/libspq/spq`) are ordinary
 packages and are covered by `make quickcheck`.
 
 Link with `-I build/libspq/include -L build/libspq/lib -lspq`. The shared library
-exports only `SPQ…` and `spg_…` symbols, so it can be loaded next to `libpq.so`.
+(soname `libspq.so`) exports only `SPQ…` and `spg_…` symbols, so it can be loaded next
+to `libpq.so`. It contains the whole engine and is about 94 MB. The static archive also
+exposes runtime support symbols to the linker; prefer the shared library.
 
 The C++ tests live in `bindings/libspq/tests` and use the vendored single-header
 doctest. They check the behavior of the C API (states, ownership, ordering, error
