@@ -61,7 +61,7 @@ design points of the part record.
    (pgjdbc: the server answers `08P01` **(probe A4)**). Difference that stays: with pgjdbc
    the server error aborts an open transaction; here the transaction is untouched. No test
    asserts the transaction state after this error.
-5. **Properties** (3.3): all 92 pgjdbc properties are known; 21 are honoured, 3 are stored for a later design, 67 are accepted and ignored, 1 is rejected when set (`replication`). In particular: `reWriteBatchedInserts` and `reWriteBatchedInsertsSize`
+5. **Properties** (3.3): all 92 pgjdbc properties are known; 22 are honoured, 2 are stored for a later design, 67 are accepted and ignored, 1 is rejected when set (`replication`). In particular: `reWriteBatchedInserts` and `reWriteBatchedInsertsSize`
    are ignored (a batch always returns exact counts, never `SUCCESS_NO_INFO`);
    `quoteReturningIdentifiers` is honoured; `preferQueryMode` is validated, reported by
    `PGConnection.getPreferQueryMode()` and otherwise ignored (decision 1 is the only
@@ -505,14 +505,14 @@ Order of the table = order of the enum constants = order of `Driver.getPropertyI
 | `DATABASE_METADATA_CACHE_FIELDS_MIB` | `databaseMetadataCacheFieldsMiB` | `5` |  | ignored |  |
 | `DEFAULT_ROW_FETCH_SIZE` | `defaultRowFetchSize` | `0` |  | honoured | initial `getFetchSize()` of statements; a hint (7.5) |
 | `DISABLE_COLUMN_SANITISER` | `disableColumnSanitiser` | `false` |  | honoured | `findColumn` (10.3) |
-| `ESCAPE_SYNTAX_CALL_MODE` | `escapeSyntaxCallMode` | `select` | select, callIfNoReturn, call | stored | JDBC-DESIGN-FEATURES (`CallEscape.Mode`, TYPES 4.4) |
+| `ESCAPE_SYNTAX_CALL_MODE` | `escapeSyntaxCallMode` | `select` | select, callIfNoReturn, call | stored | read by `prepareCall` (JDBC-FEATURES 3.1; `CallEscape.Mode`, TYPES 4.4) |
 | `FLUSH_CACHE_ON_DDL` | `flushCacheOnDdl` | `true` |  | ignored |  |
 | `GROUP_STARTUP_PARAMETERS` | `groupStartupParameters` | `false` |  | ignored |  |
 | `GSS_ENC_MODE` | `gssEncMode` | `allow` | disable, allow, prefer, require | ignored |  |
 | `GSS_LIB` | `gsslib` | `auto` | auto, sspi, gssapi | ignored |  |
 | `GSS_RESPONSE_TIMEOUT` | `gssResponseTimeout` | `5000` |  | ignored |  |
 | `GSS_USE_DEFAULT_CREDS` | `gssUseDefaultCreds` | `false` |  | ignored |  |
-| `HIDE_UNPRIVILEGED_OBJECTS` | `hideUnprivilegedObjects` | `false` |  | stored | JDBC-DESIGN-METADATA |
+| `HIDE_UNPRIVILEGED_OBJECTS` | `hideUnprivilegedObjects` | `false` |  | honoured | six `DatabaseMetaData` methods (JDBC-METADATA 5.1 rule 10) |
 | `HOST_RECHECK_SECONDS` | `hostRecheckSeconds` | `10` |  | ignored |  |
 | `JAAS_APPLICATION_NAME` | `jaasApplicationName` | `pgjdbc` |  | ignored |  |
 | `JAAS_LOGIN` | `jaasLogin` | `true` |  | ignored |  |
@@ -572,7 +572,7 @@ Order of the table = order of the enum constants = order of `Driver.getPropertyI
 | `UNKNOWN_LENGTH` | `unknownLength` | `2147483647` |  | ignored | the default always applies (TYPES 5.2) |
 | `USER` | `user` (required) | – |  | honoured | connection string (3.2); default `postgres` |
 | `USE_SPNEGO` | `useSpnego` | `false` |  | ignored |  |
-| `XML_FACTORY_FACTORY` | `xmlFactoryFactory` | `""` |  | stored | JDBC-DESIGN-FEATURES |
+| `XML_FACTORY_FACTORY` | `xmlFactoryFactory` | `""` |  | stored | read by the SQLXML classes (JDBC-FEATURES 6.1) |
 
 ### 3.4 `PGProperty`
 
@@ -1544,7 +1544,8 @@ abstract class RsCore extends ResultSetRoot
     final StmtCore statement;     final PgConnection connection;
     final int type, concurrency, holdability, maxFieldSize;
     ResultData data;              // null after close
-    final int rowCount;           // data.rowCount(), limited to maxRows when maxRows > 0
+    int rowCount;                 // data.rowCount(), limited to maxRows when maxRows > 0; changed only by the
+                                  // updatable result sets of JDBC-FEATURES 4.3 (insertRow, deleteRow)
     int row;                      // -1 before the first row, rowCount after the last
     int fetchSize, fetchDirection;
     final void checkOpen() throws SQLException;          // 55000 closed result set
