@@ -2722,7 +2722,7 @@ lines of tests. `PQ-nn` abbreviates `CPYTHON-PQ-nn-…`, likewise `TEST-…`, `B
 | CPYTHON-PQ-16-GENERATORS | `stuntgres/generators.py`, `tests/test_generators.py` | the seven generators of section 7 | PQ-08, PQ-10, PQ-11, PQ-12 | 120 + 220 |
 | CPYTHON-PQ-17-WAIT-SYNC | `stuntgres/waiting.py`, `tests/test_waiting.py` | `wait`, `wait_conn` | PQ-16 | 80 + 180 |
 | CPYTHON-PQ-18-WAIT-ASYNC | `stuntgres/waiting_async.py`, `tests/test_waiting_async.py` | `wait_async`, `wait_conn_async` | PQ-16 | 85 + 170 |
-| CPYTHON-TEST-03-NATIVE | `tests/support/native.py`, `tests/test_backend_native.py` | `native.Backend` | TEST-01S, LIBSPQ-CABI-03-BLOCKING, LIBSPQ-CABI-14-CONTROL | 60 + 60 |
+| CPYTHON-TEST-03-NATIVE | `tests/support/native.py`, `tests/test_backend_native.py` | `native.Backend` | TEST-01S, LIBSPQ-CABI-03-BLOCKING, LIBSPQ-CABI-04-PREPARED to LIBSPQ-CABI-12-CONNECT-ASYNC (all nine), LIBSPQ-CABI-14-CONTROL | 60 + 60 |
 | CPYTHON-PQ-19-EXT | `stuntgres/pq/ext.py`, `tests/test_pq_ext.py` | `ext.version`, `cluster_drop`, `reset`, `dump`, `restore` | PQ-08, TEST-03, LIBSPQ-CABI-15-DUMP | 70 + 110 |
 | CPYTHON-ENGINE-01-DESCRIBE-SQL-CURSOR | engine and reference test files, named by the part | — | — | 60 + 90 |
 | CPYTHON-ENGINE-02-CANCEL-PLPGSQL-CONTEXT (P2) | engine and reference test files, named by the part | — | — | 30 + 60 |
@@ -2745,6 +2745,10 @@ Changes against the list in the part record, with the reason:
   until the engine is fixed, section 11).
 - PQ-16 also depends on PQ-10 and PQ-12 (the `cancel` generator uses `get_cancel`; its
   test synchronises on a notice). PQ-17 and PQ-18 reach PQ-10 through PQ-16.
+- TEST-03 depends on LIBSPQ-CABI-04 to -12 as well (corrected by
+  CPYTHON-DESIGN-FEATURES): the binder of 3.2 needs every required function of the table
+  in 3.4 when the library is first used, and those nine parts provide 35 of them
+  (`docs/design/CPYTHON-FEATURES.md` 9.1). PQ-19 inherits them through TEST-03.
 
 Parts that may run side by side never share a file: after PQ-08 the parts 09 to 14 each
 own one mixin module and one test file; 15 owns `_escaping.py`; 17 and 18 own one waiter
