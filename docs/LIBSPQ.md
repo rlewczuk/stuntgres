@@ -45,7 +45,8 @@ can include and link libpq and libspq together:
 
 Enumerator values, struct layouts and function signatures are the same as in libpq 18.
 All enumerators exist, including ones libspq never returns (for example
-`SPGRES_PIPELINE_SYNC`), so numeric values line up.
+`SPGRES_PIPELINE_SYNC`), so numeric values line up. Strings that libpq returns as data
+are unchanged too: `SPQresStatus(SPGRES_TUPLES_OK)` is `"PGRES_TUPLES_OK"`.
 
 Headers:
 
@@ -148,7 +149,10 @@ until it returns `NULL`. Notifications are collected with `SPQnotifies` after ev
   conninfo gives the same connection on every machine.
 - A connection attempt always returns an `SPGconn` unless memory is exhausted. A failed
   attempt has status `SPQ_CONNECTION_BAD` and a message in `SPQerrorMessage`; the
-  object still has to be released with `SPQfinish`.
+  object still has to be released with `SPQfinish`. A malformed conninfo gives libpq's
+  bare parse message. A rejection by the engine (a bad `options` value or session
+  default, a role without `LOGIN`) gives
+  `connection to server at "<host>", port <port> failed: FATAL:  <message>`.
 - `SPQconnectStart` completes the connection before it returns. `SPQconnectPoll` then
   reports `SPGRES_POLLING_OK` (or `SPGRES_POLLING_FAILED`). Callers that start by
   waiting for write-readiness, as the manual prescribes, work unchanged because the
@@ -195,7 +199,8 @@ an asyncio reader. It must never read from it, write to it, or close it.
   it would block. The blocking functions (`SPQexec` …) are the same machinery driven
   to completion inside the library.
 - The waiting happens in C, not inside the engine runtime, so a thread blocked in
-  `SPQexec` or `SPQgetResult` is an ordinary thread in `poll()`.
+  `SPQexec` or `SPQgetResult` is an ordinary thread in `poll()`. The one exception is
+  `SPQputCopyData`, which may wait briefly inside the runtime for queue space.
 - `SPQexec` returns the last result of a multi-statement string and stops at the first
   error, as in libpq. Use `SPQsendQuery` + `SPQgetResult` to see every result.
 - A command with parameters accepts one statement and at most 65535 parameters; text
@@ -269,7 +274,7 @@ Signatures are fixed by `docs/design/LIBSPQ-CABI.md`; the contract is:
 |---|---|
 | `SPQXversion()` | The version of libspq itself, as a static string. |
 | `SPQXclusterDrop(host, port, …)` | Forget the named cluster. Fails while it still has open connections. The next connection to that name gets a new, empty cluster. This is the way to give each test a clean engine and to release memory. |
-| `SPQXreset(conn)` | Remove all objects and data of the connected database through the engine's Reset, keeping the cluster and the connection. |
+| `SPQXreset(conn)` | Remove all persistent objects and data of the connected database through the engine's Reset, keeping the cluster and the connection. Roles and other databases of the cluster are untouched. Temporary tables and prepared statements of open sessions survive. Another session that is inside a transaction gets an error until it rolls back. |
 | `SPQXdump(conn, …)` | Serialize the connected database to a caller-owned buffer (the engine's native dump). |
 | `SPQXrestore(conn, …)` | Replace the connected database with the content of a dump. |
 
