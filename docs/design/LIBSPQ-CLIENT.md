@@ -1009,7 +1009,9 @@ type inbox struct {
 }
 
 func (in *inbox) push(tag byte, body []byte) error // worker side; copies body
-func (in *inbox) pushPanic(r any)                  // 6.6; never waits
+func (in *inbox) init() error                      // creates the socketpair
+func (in *inbox) pushNow(m message)                // never waits; pushPanic (6.6, transport.go) is built on it
+func (in *inbox) close()                           // closes both descriptors
 func (in *inbox) take() (moved []message, dead bool) // application side
 func (in *inbox) markDead()
 func (in *inbox) setClosing(on bool)
@@ -1026,6 +1028,7 @@ Algorithms, all under `in.mu`:
 | Operation | Steps |
 |---|---|
 | `push` | while `size >= inboxLimit && len(q) > 0 && !closing`: `space.Wait()`. If `closing`: return `errClosing`. Append a copy; `size += len(body)`. If `!wakeSet`: write one byte to `workFD`, `wakeSet = true`. |
+| `pushNow` | Append the message; `size += len(body)`. If `!wakeSet`: write one byte, `wakeSet = true`. No waiting and no `closing` check. |
 | `take` | `moved = q`; `q = nil`; `size = 0`. If `wakeSet && !dead`: read one byte from `appFD`, `wakeSet = false`. `space.Broadcast()`. Return `moved, dead`. |
 | `markDead` | `dead = true`. If `!wakeSet`: write one byte, `wakeSet = true`. |
 | `setClosing` | set the flag; `space.Broadcast()`. |
@@ -1169,7 +1172,8 @@ before every wait and when the engine's wake channel fires.
 
 ### 6.6 Panics
 
-`inbox.pushPanic(r)` appends, without waiting for space, one `E` message built with
+`inbox.pushPanic(r)` (defined in `transport.go` on top of `pushNow`) appends, without
+waiting for space, one `E` message built with
 `pgsession.DiagnosticBody` from
 `sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "XX000",
 Message: fmt.Sprintf("libspq: internal error: %v", r)}`. The deferred function then
@@ -1789,14 +1793,17 @@ parser's error (`42601`) and leaves the content as it was.
   `tParameterStatus`, `tReady`, `tNotification`, `tParameterDescription`,
   `tCopyResponse`), and call `parse`/`GetResult`. Every row of table 7.4 has at least
   one case.
-- **Engine-backed tests** (transport onward) use `helpers_linux_test.go`:
-  `testHost(t)` returns a cluster host name unique to the test and registers a
-  cleanup that closes its connections and drops the cluster; `openTest(t)` connects
-  with `host=<testHost> dbname=app user=alice` and fails the test unless the status is
-  `ConnectionOK`; `waitReadable(t, c)` waits up to ten seconds for the descriptor with
-  `syscall.Select`; `collect(t, c)` gathers results with `GetResult`, waiting on
-  wouldBlock; `exec(t, c, sql)` runs the `ExecStart` / `SendQuery` / `ExecFinish`
-  sequence. No test sleeps to synchronize; waiting is always on the descriptor.
+- **Engine-backed tests** (transport onward) are in `*_linux_test.go` files and use
+  `helpers_linux_test.go` (part 07): `testHost(t)` returns a cluster host name unique
+  to the test and registers a cleanup that closes its connections and drops the
+  cluster; `openTest(t)` connects with `host=<testHost> dbname=app user=alice` and
+  fails the test unless the status is `ConnectionOK`; `openTestAt(t, host)` opens a
+  further connection to a cluster; `waitReadable(t, c)` waits up to ten seconds for
+  the descriptor with `syscall.Select`; `fdIsReadable(fd)` is the same check with a
+  zero timeout. `simple_linux_test.go` (part 08) adds `collect(t, c)`, which gathers
+  results with `GetResult`, waiting on wouldBlock, and `exec(t, c, sql)`, which runs
+  the `ExecStart` / `SendQuery` / `ExecFinish` sequence. No test sleeps to
+  synchronize; waiting is always on the descriptor.
 - SQL in these tests exists only to produce protocol shapes: `SELECT 1`,
   `SELECT generate_series(1,n)`, `SELECT pg_sleep(30)`, `CREATE TABLE`, `INSERT`,
   `COPY … FROM STDIN` / `TO STDOUT`, `LISTEN` / `NOTIFY`, `SET`, `BEGIN` /
@@ -1870,24 +1877,24 @@ notice. Part 10 implements them (append to `c.notifies` / `c.notices`).
 | 01A | `TestSPQConninfoKeywordValue`: every rule of 3.1 with literal expectations, both error texts, `requiressl`, later-wins. `TestSPQConninfoParams`: empty values skipped, unknown keyword, `expandDbname` with a keyword string and precedence in both directions, a plain `dbname` untouched. `TestSPQConninfoOptionTable`: 50 options in the order of 3.4; every row's label, display character and size; `DefaultOptions` values per 3.5; `EnvVar` nil exactly where the table has `-`. |
 | 01 | `TestSPQConninfoURI`: user and password, several hosts and ports, IPv6, database, query pairs, `ssl=true`, percent decoding, and every error text of 3.2. `TestSPQConninfoResolve`: each row of 3.5 including clipping at a UTF-8 boundary and the port error. `TestSPQStartupSettings`: the three token forms, escapes, override order, the four errors of 3.6. |
 | 02 | `TestSPQMessagesFrontend`: each builder against literal byte strings, parameters null/text/binary, format-count rule. `TestSPQMessagesBackend`: each decoder on valid bodies, short bodies and trailing bytes; sign extension. `TestSPQEnumValues`: every constant of 2.1 against its number. |
-| 03 | `TestSPQErrTextExamples`: every example of 8.3 literally, all four verbosities and three visibilities. `TestSPQErrTextPosition`: 8.2 rules: `\r\n`, tab, position beyond the text, position 0, the three long-line rows, one combining mark, one Han character, a LATIN1 text. |
+| 03 | `TestSPQErrTextExamples`: every example of 8.3 literally, all four verbosities and three visibilities. `TestSPQErrTextPosition`: 8.2 rules: `\r\n`, tab, position beyond the text, position 0, the three long-line rows, one combining mark, one Han character, a LATIN1 text. `TestSPQErrTextNoFields`: no severity field, SQLSTATE-only verbosity without a code, the `LOCATION` variants. |
 | 04 | `TestSPQEscapeString`, `TestSPQEscapeLiteral`, `TestSPQEscapeIdentifier`, `TestSPQEscapeBytea`, `TestSPQUnescapeBytea`: each rule of 9.1 with literal expectations, including zero-byte termination, both `stdStrings` values, invalid and incomplete UTF8, the marker bytes, hex and escape bytea round trips. |
 | 05 | `TestSPQEncodingNames`: ids 0, 6, 8, 41; aliases; unknown name; invalid ids -1 and 42. |
 | 07A | `TestSPQInboxInvariant`: after each of push, take, markDead, reset the descriptor's readability (checked with `syscall.Select`, zero timeout) equals `len(q) > 0 || dead`. `TestSPQInboxBackpressure`: a pusher goroutine blocks at the limit and resumes after take; `setClosing` releases it with an error. `TestSPQInboxConcurrent` (RACE=1): one pusher, one taker, 10,000 messages, none lost, order kept. |
 | 08A | `TestSPQResultAccessors`, `TestSPQResultRows` (`RowData` layout, `Value`, nulls, empty values), `TestSPQResultCmdTuples` (every prefix of 7.6, the uninterpretable cases), `TestSPQResultOidValue`, `TestSPQResultFieldNumber` (quotes, case folding, doubled quote), `TestSPQResStatus`, `TestSPQResultVerboseErrorMessage`. |
 | 06 | `TestSPQClusterCreate` (known names contain `application_name`, `client_encoding`, `search_path`), `TestSPQClusterAdmit` (missing role and database are created; names with `"` and spaces; existing ones reused; a role without LOGIN fails), `TestSPQClusterAdmitRace` (16 goroutines admit the same new user and database; all succeed), `TestSPQClusterSessionIDs`, `TestSPQClusterDrop` (refused while attached; collected afterwards; goroutine count restored). |
 | 07 | `TestSPQTransportConnect` (status, accessors, parameter status map filled, backend pid ≥ 2, `Socket()` ≥ 0 and not readable when idle), `TestSPQTransportConnectFailure` (bad conninfo, bad option value, role without LOGIN: status, message format of 4.5, `Socket()`), `TestSPQTransportClose` (idempotent; while `pg_sleep(30)` runs it returns within the ten-second test limit; goroutines restored; descriptors closed), `TestSPQTransportRawQuery` (put a `Q` message on the outbox, read `T D C Z` from `rbuf` after waiting on the descriptor), `TestSPQConnEscape` (9.2, 9.3). |
-| 08B | `TestSPQStateTable`: one subtest per row of 7.4 plus decoder-error handling. `TestSPQStateResults`: `prepareResult` and error accumulation. `TestSPQStateRows`: 7.7 including the three chunk outcomes. `TestSPQStateParameterStatus`: 7.3 including version forms `18.0`, `9.6.3`, `17`. |
+| 08B | `TestSPQStateTable`: one subtest per row of 7.4 plus decoder-error handling. `TestSPQStateResults`: `prepareResult` and error accumulation. `TestSPQStateRows`: 7.7 including the three chunk outcomes. `TestSPQStateParameterStatus`: 7.3 including version forms `18.0`, `9.6.3`, `17`. `TestSPQStateReady`: ReadyForQuery and the idle rows after it. |
 | 08 | `TestSPQSimpleQuery` (one result per statement, empty query, error stops the batch, `GetResult` nil exactly once), `TestSPQSimpleSendChecks` (every message of 7.2 for `SendQuery`), `TestSPQSimpleExec` (`ExecStart`/`ExecFinish` last-result rule; discards pending results; accumulated `ErrorMessage`), `TestSPQSimpleStatus` (`TransactionStatus` in every state, `ParameterStatus` after `SET`, `ServerVersion`), `TestSPQSimpleConnectionLoss` (7.2 sequence after `pg_terminate_backend` from a second connection, busy and idle), `TestSPQSimpleBackpressure` (a large result is not fully in memory before the application consumes: the worker is blocked in `push`). |
 | 09 | `TestSPQExtendedParams` (text and binary parameters and results, NULL, type OIDs given and inferred), `TestSPQExtendedPrepared` (prepare, execute twice, describe: parameter types and fields with status `CommandOK`, close), `TestSPQExtendedPortal` (describe portal of a cursor), `TestSPQExtendedSendChecks` (every message of 7.2), `TestSPQExtendedError` (an error skips to Sync and the connection is idle and usable afterwards; several statements in one command are rejected by the engine). |
-| 10 | `TestSPQNotices` (a `RAISE NOTICE` is handed out by `TakeNotices` as `NonfatalError` with fields and message; order with results; taken once), `TestSPQNotifications` (LISTEN/NOTIFY across two connections: descriptor becomes readable while idle, `Notifies` returns channel, payload and the sender's pid; delivery waits for the end of a transaction), `TestSPQInternalNotice`. |
-| 11 | `TestSPQCopyIn` (status `CopyIn` with column formats; data in several pieces; end; final `CommandOK` with `COPY n`), `TestSPQCopyInFail` (`PutCopyEnd` with a message: error result `57014`), `TestSPQCopyOut` (rows, `-1`, final result; `0` when nothing is ready), `TestSPQCopyExtended` (COPY through `SendQueryParams` needs the extra Sync), `TestSPQCopyExecStart` (a new exec during COPY IN and COPY OUT recovers), `TestSPQCopyWrongState`, `TestSPQCopyBackpressure` (RACE=1; more than 64 pieces). |
-| 12 | `TestSPQSingleRowMode`, `TestSPQChunkedRowsMode` (the three outcomes of 7.7 with literal row counts and command statuses), `TestSPQRowModeConditions`, `TestSPQRowModeError` (error after some rows). |
-| 13 | `TestSPQCancelRunning` (`57014`, connection usable), `TestSPQCancelIdle` (no effect on the next command), `TestSPQCancelFD` (a byte written with `syscall.Write` to `CancelFD()` cancels), `TestSPQCancelAfterClose`. |
+| 10 | `TestSPQNotices` (a `RAISE NOTICE` is handed out by `TakeNotices` as `NonfatalError` with fields and message; order with results; taken once), `TestSPQNotifications` (LISTEN/NOTIFY across two connections: descriptor becomes readable while idle, `Notifies` returns channel, payload and the sender's pid; delivery waits for the end of a transaction), `TestSPQInternalNotice`, `TestSPQStateTableHooks` (rows 1, 2 and 4 of 7.4 fill the queues). |
+| 11 | `TestSPQCopyIn` (status `CopyIn` with column formats; data in several pieces; end; final `CommandOK` with `COPY n`), `TestSPQCopyInFail` (`PutCopyEnd` with a message: error result `57014`), `TestSPQCopyInServerError` (bad data: `22P02`, idle afterwards), `TestSPQCopyOut` (rows, `-1`, final result; `0` when nothing is ready), `TestSPQCopyExtended` (COPY through `SendQueryParams` needs the extra Sync), `TestSPQCopyExecStart` (a new exec during COPY IN and COPY OUT recovers), `TestSPQCopyWrongState`, `TestSPQCopyBackpressure` (RACE=1; more than 64 pieces). |
+| 12 | `TestSPQSingleRowMode`, `TestSPQChunkedRowsMode` (the three outcomes of 7.7 with literal row counts and command statuses), `TestSPQRowModeConditions`, `TestSPQRowModeError` (error after some rows), `TestSPQRowModeMultiStatement`. |
+| 13 | `TestSPQCancelRunning` (`57014`, connection usable), `TestSPQCancelIdle` (no effect on the next command), `TestSPQCancelFD` (a byte written with `syscall.Write` to `CancelFD()` cancels), `TestSPQCancelInTransaction`, `TestSPQCancelAfterClose`. |
 | 14 | `TestSPQConnectStartPoll`, `TestSPQConnectParams`, `TestSPQPing` (well-formed: `PingOK` and no cluster created; malformed: `PingNoAttempt`), `TestSPQReset` (new backend pid, same descriptors, session state gone, data kept, pending results dropped). |
 | 15 | `TestSPQClientEncoding` (`SET client_encoding` changes `ClientEncoding()`; LATIN1 bytes arrive), `TestSPQClientEncodingStatement` (`auto`, too long). |
-| 16 | `TestSPQDropCluster` (4.6 table; a new connection gets an empty cluster), `TestSPQResetDatabase` (the measured effects of section 10; the three precondition errors). |
-| 17 | `TestSPQDumpRestore` (round trip into the same and into another cluster; invalid dump: `false`, message, content unchanged; preconditions). |
+| 16 | `TestSPQDropCluster` (4.6 table; a new connection gets an empty cluster), `TestSPQResetDatabase` (the measured effects of section 10), `TestSPQResetDatabasePreconditions` (the three errors). |
+| 17 | `TestSPQDumpRestore` (round trip into the same and into another cluster), `TestSPQRestoreInvalid` (`false`, message, content unchanged), `TestSPQDumpPreconditions`. |
 
 ## 13. Experiments behind this design
 
